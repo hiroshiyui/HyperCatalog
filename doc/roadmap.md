@@ -89,3 +89,4 @@ Rust-native — see [ADR-0001](adr/0001-rust-native-hypertalk.md).
 - [ADR-0005 — On-device object authoring](adr/0005-object-authoring.md)
 - [ADR-0006 — HyperTalk geometry properties](adr/0006-geometry-properties.md)
 - [ADR-0007 — Text styling](adr/0007-text-styling.md)
+- [ADR-0008 — Native-view rendering](adr/0008-native-view-rendering.md) *(proposed)*

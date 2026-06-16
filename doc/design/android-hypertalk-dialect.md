@@ -41,8 +41,9 @@ boundary a thin, swappable, data-only channel, so "emit a view tree as JSON" is 
 describes *what* the UI is; the host decides *how* to realize it (today: Canvas; target: Material
 views). The retro Canvas renderer can remain as an alternate "classic" target.
 
-When scheduled, this needs its own **Accepted ADR** (host renders native Material views), plus the
-choice of **Android Views vs Jetpack Compose** as the realization layer (see Open Questions).
+This render-contract fork is drafted as **[ADR-0008 — Native-view rendering](../adr/0008-native-view-rendering.md)**
+(status: *proposed*); accepting it — and choosing **Android Views vs Jetpack Compose** as the
+realization layer — is gated on the Open Questions below.
 
 ## Lifecycle — Android's, expressed as HyperCard system messages
 
@@ -153,8 +154,9 @@ stack do something useful while not in the foreground — very un-HyperCard, ver
 - **`model.rs` grows:** an object `kind` taxonomy, Material properties (role, textRole, color),
   layout params (mode, weight, anchors, padding), and a stack `theme`. Existing classic stacks
   should still load (additive, defaulted fields), preserving the player.
-- **New ADRs to write when scheduled:** native-view rendering (the fork above), the object-kind
-  taxonomy, the layout model, and the lifecycle-message set.
+- **ADRs:** native-view rendering (the fork above) is drafted as
+  [ADR-0008](../adr/0008-native-view-rendering.md) *(proposed)*; the object-kind taxonomy, the
+  layout model, and the lifecycle-message set remain to write when scheduled.
 
 ## Non-goals / honesty
 
