@@ -79,10 +79,20 @@ class MainActivity : AppCompatActivity(), CardView.Callbacks {
         // UniFFI typed read-path smoke test (ADR-0012, stage 2): load a stack and render it via
         // the generated typed bridge — no JSON. Temporary; CardView adopts it next.
         runCatching {
-            val demo = uniffi.hyperffi.HyperStack.loadYaml("name: Smoke\ncards:\n  - id: 1\n    name: One")
+            val demo = uniffi.hyperffi.HyperStack.loadYaml(
+                "name: Smoke\n" +
+                    "cards:\n  - id: 1\n    name: One\n    buttons:\n" +
+                    "      - id: 9\n        name: b\n        rect: { x: 0, y: 0, w: 50, h: 50 }\n" +
+                    "        script: |\n          on mouseUp\n            beep\n          end mouseUp",
+            )
             val rl = demo.renderCurrentCard()
-            Log.i("UniFFI", "typed render -> card=${rl.cardName}, items=${rl.items.size}")
-        }.onFailure { Log.e("UniFFI", "typed render failed", it) }
+            val d = demo.dispatchTouch(10f, 10f, "up") // taps the button -> beep effect
+            Log.i(
+                "UniFFI",
+                "typed render -> card=${rl.cardName}, items=${rl.items.size}; " +
+                    "dispatch -> redraw=${d.needsRedraw}, effects=${d.hostCmds.size}, err=${d.error}",
+            )
+        }.onFailure { Log.e("UniFFI", "typed bridge failed", it) }
 
         root = FrameLayout(this)
         root.id = View.generateViewId()

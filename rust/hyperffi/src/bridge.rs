@@ -90,6 +90,51 @@ impl From<hypercore::RenderList> for RenderList {
     }
 }
 
+/// A side effect the host performs after a dispatch — mirrors `hypercore::HostEffect`.
+#[derive(uniffi::Enum)]
+pub enum HostEffect {
+    Answer { text: String },
+    Message { text: String },
+    Beep,
+    GoStack { name: String },
+    ShowStacks,
+}
+
+impl From<hypercore::HostEffect> for HostEffect {
+    fn from(e: hypercore::HostEffect) -> Self {
+        match e {
+            hypercore::HostEffect::Answer(text) => HostEffect::Answer { text },
+            hypercore::HostEffect::Message(text) => HostEffect::Message { text },
+            hypercore::HostEffect::Beep => HostEffect::Beep,
+            hypercore::HostEffect::GoStack(name) => HostEffect::GoStack { name },
+            hypercore::HostEffect::ShowStacks => HostEffect::ShowStacks,
+        }
+    }
+}
+
+/// Result of a dispatch (tap/gesture/openCard) — the typed replacement for the JSON
+/// `DispatchResult`. Mirrors `hypercore::DispatchResult`.
+#[derive(uniffi::Record)]
+pub struct DispatchResult {
+    pub needs_redraw: bool,
+    pub card_changed: bool,
+    pub focus_field: Option<u32>,
+    pub host_cmds: Vec<HostEffect>,
+    pub error: Option<String>,
+}
+
+impl From<hypercore::DispatchResult> for DispatchResult {
+    fn from(r: hypercore::DispatchResult) -> Self {
+        DispatchResult {
+            needs_redraw: r.needs_redraw,
+            card_changed: r.card_changed,
+            focus_field: r.focus_field,
+            host_cmds: r.host_cmds.into_iter().map(HostEffect::from).collect(),
+            error: r.error,
+        }
+    }
+}
+
 /// A loaded stack the host drives. Wraps `Session` behind a `Mutex` — UniFFI shares objects as
 /// `Arc<Self>` (must be `Send + Sync`) and exposes `&self` methods, while `Session` needs `&mut`
 /// for dispatch/edits, so interior mutability is required.
@@ -123,5 +168,28 @@ impl HyperStack {
     /// The draw list for the current card — the typed replacement for `nativeRender`'s JSON.
     pub fn render_current_card(&self) -> RenderList {
         self.inner.lock().unwrap().render_current_card().into()
+    }
+
+    /// Fire the current card's `openCard` handler (run after navigation).
+    pub fn open_card(&self) -> DispatchResult {
+        self.inner.lock().unwrap().open_current_card().into()
+    }
+
+    /// Dispatch a touch at a card-space point; `phase` is "up" for a completed tap.
+    pub fn dispatch_touch(&self, x: f32, y: f32, phase: String) -> DispatchResult {
+        self.inner
+            .lock()
+            .unwrap()
+            .dispatch_touch(x, y, &phase)
+            .into()
+    }
+
+    /// Dispatch a touchscreen gesture (`tap`/`doubleTap`/`longPress`/`swipe*`).
+    pub fn dispatch_gesture(&self, x: f32, y: f32, gesture: String) -> DispatchResult {
+        self.inner
+            .lock()
+            .unwrap()
+            .dispatch_gesture(x, y, &gesture)
+            .into()
     }
 }
