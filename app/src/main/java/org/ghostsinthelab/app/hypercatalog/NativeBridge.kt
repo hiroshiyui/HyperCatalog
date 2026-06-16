@@ -22,6 +22,13 @@ object NativeBridge {
     /** Dispatch a touch. `phase` is "up" for a completed tap. Returns DispatchResult JSON. */
     external fun nativeDispatchTouch(handle: Long, x: Float, y: Float, phase: String): String
 
+    /**
+     * Dispatch a touchscreen gesture (`tap`/`doubleTap`/`longPress`/`swipeLeft`/`swipeRight`/
+     * `swipeUp`/`swipeDown`) at a card-space point. The named message bubbles object → card →
+     * background → stack. Returns DispatchResult JSON (never requests field focus).
+     */
+    external fun nativeDispatchGesture(handle: Long, x: Float, y: Float, gesture: String): String
+
     /** Set a field's text by id (host-edited). Returns true if a field changed. */
     external fun nativeSetFieldText(handle: Long, fieldId: Int, text: String): Boolean
 

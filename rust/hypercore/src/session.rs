@@ -512,6 +512,32 @@ impl Session {
         }
     }
 
+    /// Dispatch a **touchscreen gesture** as a HyperTalk message — the post-WIMP companion to
+    /// `dispatch_touch`. `gesture` is a handler name like `tap`, `doubleTap`, `longPress`, or
+    /// `swipeLeft`/`swipeRight`/`swipeUp`/`swipeDown` (matched case-insensitively). The message
+    /// is sent to the object under the gesture's start point and then **bubbles** card →
+    /// background → stack, so a stack-level `on swipeLeft` catches a swipe made anywhere while
+    /// an object can still intercept its own. Gestures with no matching handler are no-ops.
+    ///
+    /// Unlike `dispatch_touch`, a gesture never opens the field editor: long-pressing or
+    /// swiping an editable field runs script, it doesn't start typing. (A plain tap on an
+    /// unlocked field still goes through `dispatch_touch` for focus.)
+    pub fn dispatch_gesture(&mut self, x: f32, y: f32, gesture: &str) -> DispatchResult {
+        let origin = self.me_at(x, y);
+        let mut r = self.dispatch_message(origin, gesture);
+        r.needs_redraw = true;
+        r
+    }
+
+    /// The topmost object at a card-space point as a `Me`, regardless of lock state (a
+    /// gesture targets locked and unlocked objects alike). Mirrors `hit_test`'s z-order.
+    fn me_at(&self, x: f32, y: f32) -> Option<Me> {
+        self.hit_test(x, y).map(|h| match h {
+            Hit::Button(id) => Me::Button(id),
+            Hit::EditableField(id) | Hit::LockedField(id) => Me::Field(id),
+        })
+    }
+
     fn hit_test(&self, x: f32, y: f32) -> Option<Hit> {
         let card = &self.stack.cards[self.card_index];
         // Topmost first: card buttons, card fields, then background buttons, fields.

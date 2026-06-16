@@ -850,6 +850,88 @@ fn parses_handler_with_parameter_list() {
     assert_eq!(script.handlers[0].params, vec!["a", "b"]);
 }
 
+/// A stack for touchscreen-gesture dispatch: a locked field whose long-press writes it, and a
+/// stack-level swipe handler for card navigation. Two cards so swipe-to-navigate is observable.
+fn gesture_json() -> String {
+    r#"{
+      "name": "G",
+      "script": "on swipeLeft\n  go next card\nend swipeLeft",
+      "cards": [
+        { "id": 1, "name": "One",
+          "fields": [
+            { "id": 5, "name": "out", "rect": {"x":0,"y":0,"w":100,"h":40}, "text": "idle", "locked": true }
+          ],
+          "buttons": [
+            { "id": 6, "name": "hold", "rect": {"x":0,"y":60,"w":100,"h":40},
+              "script": "on longPress\n  put \"held\" into field \"out\"\nend longPress" }
+          ] },
+        { "id": 2, "name": "Two" }
+      ]
+    }"#
+    .to_string()
+}
+
+#[test]
+fn long_press_runs_object_gesture_handler() {
+    let mut s = Session::load_from_json(&gesture_json()).unwrap();
+    // Long-press the "hold" button (rect y 60..100): its `on longPress` fires.
+    let r = s.dispatch_gesture(10.0, 70.0, "longPress");
+    assert!(r.error.is_none(), "error: {:?}", r.error);
+    assert_eq!(field_text(&s, 5), "held");
+}
+
+#[test]
+fn swipe_bubbles_to_stack_handler_and_navigates() {
+    let mut s = Session::load_from_json(&gesture_json()).unwrap();
+    assert_eq!(s.card_index(), 0);
+    // A swipe over empty space has no object to handle it, so it bubbles to the stack's
+    // `on swipeLeft`, which navigates. Matching is case-insensitive (host sends "swipeleft").
+    let r = s.dispatch_gesture(10.0, 200.0, "swipeleft");
+    assert!(r.error.is_none(), "error: {:?}", r.error);
+    assert!(r.card_changed);
+    assert_eq!(s.card_index(), 1);
+}
+
+#[test]
+fn swipe_over_object_without_handler_still_bubbles() {
+    // The gesture starts over the "hold" button, which only handles longPress; the swipe must
+    // bubble past it to the stack handler rather than being swallowed.
+    let mut s = Session::load_from_json(&gesture_json()).unwrap();
+    let r = s.dispatch_gesture(10.0, 70.0, "swipeLeft");
+    assert!(r.card_changed);
+    assert_eq!(s.card_index(), 1);
+}
+
+#[test]
+fn unhandled_gesture_is_a_noop() {
+    let mut s = Session::load_from_json(&gesture_json()).unwrap();
+    // No `on swipeRight` anywhere: no error, no navigation, field unchanged.
+    let r = s.dispatch_gesture(10.0, 70.0, "swipeRight");
+    assert!(r.error.is_none(), "error: {:?}", r.error);
+    assert!(!r.card_changed);
+    assert_eq!(field_text(&s, 5), "idle");
+}
+
+#[test]
+fn gesture_targets_locked_field_without_focusing() {
+    // A gesture on an unlocked field must NOT request focus (that is the tap path's job);
+    // it runs the field's gesture handler instead.
+    let json = r#"{
+      "name": "G", "cards": [
+        { "id": 1, "name": "One", "fields": [
+          { "id": 7, "name": "edit", "rect": {"x":0,"y":0,"w":100,"h":40},
+            "script": "on longPress\n  set the locked of me to true\nend longPress" }
+        ] }
+      ]
+    }"#;
+    let mut s = Session::load_from_json(json).unwrap();
+    let r = s.dispatch_gesture(10.0, 10.0, "longPress");
+    assert!(r.error.is_none(), "error: {:?}", r.error);
+    assert_eq!(r.focus_field, None); // never focuses on a gesture
+    let p: serde_json::Value = serde_json::from_str(&s.get_object_props(7).unwrap()).unwrap();
+    assert_eq!(p["locked"], true);
+}
+
 /// Direct unit tests for the string-centric `Value` coercions.
 mod value_unit {
     use crate::script::value::{Value, fmt_number};

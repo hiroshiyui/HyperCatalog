@@ -92,6 +92,25 @@ pub extern "system" fn Java_org_ghostsinthelab_app_hypercatalog_NativeBridge_nat
     java_string(&mut env, &serde_json::to_string(&r).unwrap_or_default())
 }
 
+/// Dispatch a touchscreen gesture (`tap`/`doubleTap`/`longPress`/`swipeLeft`/…) at (x, y);
+/// returns a DispatchResult JSON. The named message bubbles object → card → background → stack.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_org_ghostsinthelab_app_hypercatalog_NativeBridge_nativeDispatchGesture(
+    mut env: JNIEnv,
+    _class: JClass,
+    handle: jlong,
+    x: jfloat,
+    y: jfloat,
+    gesture: JString,
+) -> jstring {
+    let gesture = rust_string(&mut env, &gesture);
+    let Some(s) = (unsafe { session(handle) }) else {
+        return java_string(&mut env, "{}");
+    };
+    let r = s.dispatch_gesture(x, y, &gesture);
+    java_string(&mut env, &serde_json::to_string(&r).unwrap_or_default())
+}
+
 /// Set a field's text by id. Returns true if a field was updated.
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_org_ghostsinthelab_app_hypercatalog_NativeBridge_nativeSetFieldText(

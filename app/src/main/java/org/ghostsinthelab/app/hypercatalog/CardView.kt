@@ -7,9 +7,11 @@ import android.graphics.Paint
 import android.graphics.RectF
 import android.graphics.Typeface
 import android.util.AttributeSet
+import android.view.GestureDetector
 import android.view.MotionEvent
 import android.view.View
 import org.json.JSONObject
+import kotlin.math.abs
 
 /** A draw primitive for one card object, in card coordinates. */
 data class DrawItem(
@@ -81,6 +83,12 @@ class CardView @JvmOverloads constructor(
     private var draft: RectF? = null
     private val handleHalfPx = 16f // resize-handle half-size, in view pixels
     private val minObject = 12f // minimum object size in card units (mirrors core clamp)
+
+    // Browse-mode gesture state.
+    private val swipeMinPx = 48f // minimum fling travel (view px) to count as a swipe
+    /** True once a long-press/swipe/double-tap handled the current touch, so ACTION_UP
+     *  doesn't also fire a tap. Reset at each ACTION_DOWN. */
+    private var gestureConsumed = false
 
     private var cardW = 360f
     private var cardH = 540f
@@ -273,21 +281,96 @@ class CardView @JvmOverloads constructor(
     override fun onTouchEvent(event: MotionEvent): Boolean {
         if (handle == 0L) return true
         if (editMode) return handleEditTouch(event)
+        return handleBrowseTouch(event)
+    }
 
-        // Browse mode acts on a completed tap only.
-        if (event.action == MotionEvent.ACTION_DOWN) return true
-        if (event.action != MotionEvent.ACTION_UP) return false
+    /**
+     * Browse-mode touch. Every event is fed to [gestureDetector], which fires the
+     * touchscreen gestures (long-press, double-tap, swipe). A plain completed tap still
+     * dispatches `mouseUp` here (the post-WIMP "click"); [gestureConsumed] suppresses that
+     * tap when a richer gesture already handled the sequence.
+     */
+    private fun handleBrowseTouch(event: MotionEvent): Boolean {
+        // Reset the flag at sequence start *before* feeding the detector — a double-tap is
+        // recognized within this very DOWN, and must not be cleared afterward.
+        if (event.action == MotionEvent.ACTION_DOWN) gestureConsumed = false
+        gestureDetector.onTouchEvent(event)
 
-        // A tap anywhere first commits any field being edited (HyperCard-style), so the
-        // tapped script sees the up-to-date field contents.
+        return when (event.action) {
+            MotionEvent.ACTION_DOWN -> true
+            MotionEvent.ACTION_UP -> {
+                if (!gestureConsumed) {
+                    // A tap first commits any field being edited (HyperCard-style), so the
+                    // tapped script sees up-to-date field contents.
+                    callbacks?.commitPendingEdit()
+                    val cx = tf.viewToCardX(event.x)
+                    val cy = tf.viewToCardY(event.y)
+                    applyDispatchResult(JSONObject(NativeBridge.nativeDispatchTouch(handle, cx, cy, "up")))
+                }
+                true
+            }
+            else -> false
+        }
+    }
+
+    /** Recognizes touchscreen gestures and routes them to the core as named messages. */
+    private val gestureDetector =
+        GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
+            override fun onDown(e: MotionEvent): Boolean = true // so later callbacks fire
+
+            override fun onLongPress(e: MotionEvent) {
+                gestureConsumed = true
+                dispatchGestureAt(e.x, e.y, "longPress")
+            }
+
+            override fun onDoubleTap(e: MotionEvent): Boolean {
+                gestureConsumed = true
+                dispatchGestureAt(e.x, e.y, "doubleTap")
+                return true
+            }
+
+            override fun onFling(
+                e1: MotionEvent?,
+                e2: MotionEvent,
+                velocityX: Float,
+                velocityY: Float,
+            ): Boolean {
+                val gesture = flingGesture(e1, e2) ?: return false
+                gestureConsumed = true
+                // Target the object the swipe began on (start point), then bubble.
+                val start = e1 ?: e2
+                dispatchGestureAt(start.x, start.y, gesture)
+                return true
+            }
+        })
+
+    /** Classify a fling into a swipe message, or null if it's too short to count. */
+    private fun flingGesture(e1: MotionEvent?, e2: MotionEvent): String? {
+        val down = e1 ?: return null
+        val dx = e2.x - down.x
+        val dy = e2.y - down.y
+        if (abs(dx) < swipeMinPx && abs(dy) < swipeMinPx) return null
+        return if (abs(dx) > abs(dy)) {
+            if (dx > 0) "swipeRight" else "swipeLeft"
+        } else {
+            if (dy > 0) "swipeDown" else "swipeUp"
+        }
+    }
+
+    /** Map a view-space gesture point to card coords and dispatch it to the core. */
+    private fun dispatchGestureAt(viewX: Float, viewY: Float, gesture: String) {
         callbacks?.commitPendingEdit()
+        val cx = tf.viewToCardX(viewX)
+        val cy = tf.viewToCardY(viewY)
+        applyDispatchResult(JSONObject(NativeBridge.nativeDispatchGesture(handle, cx, cy, gesture)))
+    }
 
-        // view → card coordinates
-        val cx = tf.viewToCardX(event.x)
-        val cy = tf.viewToCardY(event.y)
-
-        val result = JSONObject(NativeBridge.nativeDispatchTouch(handle, cx, cy, "up"))
-
+    /**
+     * Post-process a DispatchResult: surface effects/errors, open the field editor when
+     * asked (tap path only; gestures never set `focus_field`), and repaint — running the new
+     * card's `openCard` on a navigation. Shared by the tap and gesture paths.
+     */
+    private fun applyDispatchResult(result: JSONObject) {
         val error = if (result.isNull("error")) null else result.optString("error").ifEmpty { null }
         val effects = parseEffects(result.optJSONArray("host_cmds"))
         if (effects.isNotEmpty() || error != null) {
@@ -302,13 +385,11 @@ class CardView @JvmOverloads constructor(
         }
 
         if (result.optBoolean("card_changed")) {
-            // run the new card's openCard handler, then repaint
             NativeBridge.nativeOpenCard(handle)
             refresh()
         } else if (result.optBoolean("needs_redraw")) {
             refresh()
         }
-        return true
     }
 
     private fun parseEffects(arr: org.json.JSONArray?): List<HostEffect> {
