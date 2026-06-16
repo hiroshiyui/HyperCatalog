@@ -54,8 +54,8 @@ class MainActivity : AppCompatActivity(), CardView.Callbacks {
     /** Key (asset/file basename, no `.json`) of the stack currently loaded. */
     private var currentKey: String = ""
 
-    /** Per-stack working copies: `filesDir/stacks/<key>.json`. Each stack persists its own
-     *  edits, so switching never clobbers another stack. */
+    /** Per-stack working copies: `filesDir/stacks/<key>.yaml` (legacy `.json` still read). Each
+     *  stack persists its own edits, so switching never clobbers another stack. */
     private val stacksDir: File by lazy { File(filesDir, "stacks") }
 
     /** Remembers which stack to reopen on next launch. */
@@ -186,13 +186,13 @@ class MainActivity : AppCompatActivity(), CardView.Callbacks {
         loadStackKey(key)
     }
 
-    /** Load the stack named [key]: its saved working copy (always JSON) if present, else the
-     *  bundled asset (JSON or the readable YAML authoring format). Frees the previous handle
-     *  and remembers [key] as the stack to reopen. */
+    /** Load the stack named [key]: its saved working copy (YAML; legacy JSON accepted) if
+     *  present, else the bundled asset (YAML authoring format, or legacy JSON). Frees the
+     *  previous handle and remembers [key] as the stack to reopen. */
     private fun loadStackKey(key: String) {
-        val saved = File(stacksDir, "$key.json").takeIf { it.exists() }
+        val saved = savedCopyFor(key)
         val newHandle: Long = if (saved != null) {
-            NativeBridge.nativeLoad(runCatching { saved.readText() }.getOrDefault(""))
+            loadContent(runCatching { saved.readText() }.getOrDefault(""), saved.name)
         } else {
             val asset = assetFileFor(key) ?: run {
                 Toast.makeText(this, "No stack \"$key\"", Toast.LENGTH_LONG).show()
@@ -201,11 +201,7 @@ class MainActivity : AppCompatActivity(), CardView.Callbacks {
             val content = runCatching {
                 assets.open(asset).bufferedReader().use { it.readText() }
             }.getOrNull().orEmpty()
-            if (asset.endsWith(".yaml") || asset.endsWith(".yml")) {
-                NativeBridge.nativeLoadYaml(content)
-            } else {
-                NativeBridge.nativeLoad(content)
-            }
+            loadContent(content, asset)
         }
         if (newHandle == 0L) {
             Toast.makeText(this, "Failed to load stack \"$key\"", Toast.LENGTH_LONG).show()
@@ -220,15 +216,29 @@ class MainActivity : AppCompatActivity(), CardView.Callbacks {
         runCatching { lastStackFile.writeText(key) }
     }
 
-    /** Save the current stack to its own working copy, so edits survive a switch or restart. */
+    /** Save the current stack to its own YAML working copy, so edits survive a switch or
+     *  restart. Supersedes (deletes) any legacy JSON copy — stacks are JSON-free now. */
     private fun saveCurrentStack() {
         if (handle != 0L && currentKey.isNotEmpty()) {
             stacksDir.mkdirs()
             runCatching {
-                File(stacksDir, "$currentKey.json").writeText(NativeBridge.nativeToJson(handle))
+                File(stacksDir, "$currentKey.yaml").writeText(NativeBridge.nativeToYaml(handle))
+                File(stacksDir, "$currentKey.json").delete()
             }
         }
     }
+
+    /** The saved working copy for [key] — YAML preferred, legacy JSON accepted — or null. */
+    private fun savedCopyFor(key: String): File? =
+        listOf("$key.yaml", "$key.json").map { File(stacksDir, it) }.firstOrNull { it.exists() }
+
+    /** Load [content] with the parser implied by [filename]'s extension (YAML vs JSON). */
+    private fun loadContent(content: String, filename: String): Long =
+        if (filename.endsWith(".yaml") || filename.endsWith(".yml")) {
+            NativeBridge.nativeLoadYaml(content)
+        } else {
+            NativeBridge.nativeLoad(content)
+        }
 
     private fun showStackPicker() {
         commitPendingEdit()
@@ -274,8 +284,10 @@ class MainActivity : AppCompatActivity(), CardView.Callbacks {
                 ?.filter { name -> STACK_ASSET_EXTS.any { name.endsWith(".$it") } }
                 ?.map { it.substringBeforeLast('.') }
         }.getOrNull().orEmpty()
-        val fromSaved = (stacksDir.listFiles { f -> f.name.endsWith(".json") } ?: emptyArray())
-            .map { it.name.removeSuffix(".json") }
+        val fromSaved = (
+            stacksDir.listFiles { f -> f.name.endsWith(".yaml") || f.name.endsWith(".json") }
+                ?: emptyArray()
+            ).map { it.name.substringBeforeLast('.') }
         return (fromAssets + fromSaved).distinct().sorted()
     }
 
@@ -285,12 +297,10 @@ class MainActivity : AppCompatActivity(), CardView.Callbacks {
         return STACK_ASSET_EXTS.map { "$key.$it" }.firstOrNull { it in names }
     }
 
-    /** Raw stack content for [key] — saved JSON working copy if present, else the bundled asset
+    /** Raw stack content for [key] — saved working copy if present, else the bundled asset
      *  (any format). Used to read the display name; [loadStackKey] does the actual loading. */
     private fun stackContentFor(key: String): String? {
-        File(stacksDir, "$key.json").takeIf { it.exists() }?.let { f ->
-            runCatching { return f.readText() }
-        }
+        savedCopyFor(key)?.let { f -> runCatching { return f.readText() } }
         val asset = assetFileFor(key) ?: return null
         return runCatching { assets.open(asset).bufferedReader().use { it.readText() } }.getOrNull()
     }

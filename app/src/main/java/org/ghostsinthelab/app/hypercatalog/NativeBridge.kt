@@ -72,6 +72,9 @@ object NativeBridge {
     /** Serialize the current stack to JSON (for saving). */
     external fun nativeToJson(handle: Long): String
 
+    /** Serialize the current stack to YAML (the format working copies are saved in). */
+    external fun nativeToYaml(handle: Long): String
+
     /** Release a handle. Safe to call once per handle. */
     external fun nativeFree(handle: Long)
 }

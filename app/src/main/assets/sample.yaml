@@ -1,0 +1,148 @@
+# Welcome stack — authored in YAML (ADR-0011).
+name: Welcome
+width: 360
+height: 540
+backgrounds:
+- id: 1
+  name: Main
+  fields: []
+  buttons:
+  - id: 100
+    name: Prev
+    rect:
+      x: 20
+      y: 470
+      w: 100
+      h: 44
+    title: < Prev
+    style: rounded
+    script: |-
+      on mouseUp
+        go previous card
+      end mouseUp
+  - id: 101
+    name: Next
+    rect:
+      x: 240
+      y: 470
+      w: 100
+      h: 44
+    title: Next >
+    style: rounded
+    script: |-
+      on mouseUp
+        go next card
+      end mouseUp
+  - id: 102
+    name: Stacks
+    rect:
+      x: 130
+      y: 470
+      w: 100
+      h: 44
+    title: Stacks
+    style: rounded
+    text_size: 14
+    script: |-
+      on mouseUp
+        show stacks
+      end mouseUp
+  script: ''
+cards:
+- id: 1
+  name: Counter
+  background_id: 1
+  fields:
+  - id: 10
+    name: title
+    rect:
+      x: 20
+      y: 24
+      w: 320
+      h: 40
+    text: Counter
+    locked: true
+  - id: 11
+    name: count
+    rect:
+      x: 130
+      y: 120
+      w: 100
+      h: 60
+    text: '0'
+    locked: true
+  buttons:
+  - id: 20
+    name: Increment
+    rect:
+      x: 110
+      y: 220
+      w: 140
+      h: 50
+    title: Add 1
+    style: rounded
+    script: |-
+      on mouseUp
+        add 1 to field "count"
+      end mouseUp
+  - id: 21
+    name: Reset
+    rect:
+      x: 110
+      y: 290
+      w: 140
+      h: 50
+    title: Reset
+    style: rectangle
+    script: |-
+      on mouseUp
+        put 0 into field "count"
+        beep
+      end mouseUp
+  script: ''
+- id: 2
+  name: Greeting
+  background_id: 1
+  fields:
+  - id: 30
+    name: title
+    rect:
+      x: 20
+      y: 24
+      w: 320
+      h: 40
+    text: Type your name
+    locked: true
+  - id: 31
+    name: name
+    rect:
+      x: 40
+      y: 100
+      w: 280
+      h: 44
+    text: ''
+  - id: 32
+    name: greeting
+    rect:
+      x: 40
+      y: 170
+      w: 280
+      h: 44
+    text: ''
+    locked: true
+  buttons:
+  - id: 40
+    name: Greet
+    rect:
+      x: 110
+      y: 240
+      w: 140
+      h: 50
+    title: Say Hello
+    style: rounded
+    script: |-
+      on mouseUp
+        put "Hello, " & field "name" & "!" into field "greeting"
+      end mouseUp
+  script: ''
+script: ''

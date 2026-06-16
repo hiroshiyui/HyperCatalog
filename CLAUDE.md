@@ -43,11 +43,12 @@ Android (Kotlin host, thin)                    rust/ workspace
 - **Rendering**: the core emits card-coordinate draw primitives; `CardView` letterbox-scales
   them onto a Canvas and maps touches back. Redraws are event-driven (taps), not per-frame —
   hence JSON-string marshalling is fine.
-- **Persistence**: stacks live as bundled assets (`assets/*.yaml` for authoring — readable block
-  scalars — or `*.json`; default `productivity`); the host keeps a per-stack working copy as
-  **JSON** in `filesDir/stacks/<key>.json` (saved on pause/switch) and remembers the last-used
-  stack in `filesDir/last_stack`. **YAML is the authoring/source format only**; runtime saves and
-  the JNI bridge stay JSON (ADR-0011 / ADR-0002). The current card index is **not** persisted
+- **Persistence**: stacks are **YAML** end to end (ADR-0011) — bundled assets are `assets/*.yaml`
+  (readable block scalars; default `productivity`), and the host saves each stack's per-stack
+  working copy as `filesDir/stacks/<key>.yaml` (on pause/switch), remembering the last-used stack
+  in `filesDir/last_stack`. JSON is **deprecated for stacks**: `load_from_json` still reads legacy
+  `.json` assets/copies for compatibility, but nothing writes JSON. The **JNI bridge** still uses
+  JSON for now (being migrated to UniFFI — ADR-0012). The current card index is **not** persisted
   (reopens at card 1).
 
 When changing the cross-language contract, keep three things in sync: the serde structs in
@@ -95,6 +96,13 @@ reinstalling — Gradle won't see Rust source changes unless `cargoNdkBuild` rer
   shared with AGP and cargo-ndk.
 - cargo-ndk is invoked via a plain `Exec` task, **not** a third-party Rust/Gradle plugin
   (AGP 9.2.1 / Gradle 9.4.1 are bleeding edge). `resolveCargo()`/`resolveSdkDir()` find the tools.
+- **16 KB page size** ([guide](https://developer.android.com/guide/practices/page-sizes)): Android
+  15+ devices may use 16 KB pages and Play requires support. NDK 29 (≥ r28) links the `.so`
+  16 KB-aligned by default; `rust/.cargo/config.toml` also sets `-Wl,-z,max-page-size=16384`
+  explicitly. Verify with `llvm-readelf -l libhyperffi.so | grep LOAD` (align must be `0x4000`).
+  Caveat for the UniFFI bridge (ADR-0012): JNA 5.15's `libjnidispatch.so` is 16 KB-aligned on
+  arm64-v8a but only 4 KB-aligned on **x86_64** — emulator-only, so it doesn't affect Play/real
+  (arm64) compliance, but it can trip the emulator's page-size warning.
 - The HyperTalk interpreter is a **subset** (documented in `rust/README.md`). Unknown custom
   messages (`Stmt::Send`) are no-ops; `repeat`/property coverage is partial.
 
