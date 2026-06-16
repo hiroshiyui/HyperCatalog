@@ -1,0 +1,20 @@
+# 16 KB page-size support for the Android native library.
+# See https://developer.android.com/guide/practices/page-sizes — Android 15+ devices may use a
+# 16 KB memory page size, and Google Play requires apps to support it.
+#
+# NDK r28+ (we pin r29) already links .so files 16 KB-aligned by default, so these flags are
+# belt-and-suspenders: they pin the intent explicitly and keep the .so 16 KB-aligned even on an
+# older NDK. Verify with: llvm-readelf -l libhyperffi.so | grep LOAD  (LOAD align must be 0x4000).
+# Scoped to the Android targets so host/desktop builds are unaffected.
+
+[target.aarch64-linux-android]
+rustflags = [
+    "-C", "link-arg=-Wl,-z,max-page-size=16384",
+    "-C", "link-arg=-Wl,-z,common-page-size=16384",
+]
+
+[target.x86_64-linux-android]
+rustflags = [
+    "-C", "link-arg=-Wl,-z,max-page-size=16384",
+    "-C", "link-arg=-Wl,-z,common-page-size=16384",
+]
