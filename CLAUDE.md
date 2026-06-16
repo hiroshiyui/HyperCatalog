@@ -43,11 +43,12 @@ Android (Kotlin host, thin)                    rust/ workspace
 - **Rendering**: the core emits card-coordinate draw primitives; `CardView` letterbox-scales
   them onto a Canvas and maps touches back. Redraws are event-driven (taps), not per-frame —
   hence JSON-string marshalling is fine.
-- **Persistence**: stacks live as bundled assets (`assets/*.yaml` for authoring — readable block
-  scalars — or `*.json`; default `productivity`); the host keeps a per-stack working copy as
-  **JSON** in `filesDir/stacks/<key>.json` (saved on pause/switch) and remembers the last-used
-  stack in `filesDir/last_stack`. **YAML is the authoring/source format only**; runtime saves and
-  the JNI bridge stay JSON (ADR-0011 / ADR-0002). The current card index is **not** persisted
+- **Persistence**: stacks are **YAML** end to end (ADR-0011) — bundled assets are `assets/*.yaml`
+  (readable block scalars; default `productivity`), and the host saves each stack's per-stack
+  working copy as `filesDir/stacks/<key>.yaml` (on pause/switch), remembering the last-used stack
+  in `filesDir/last_stack`. JSON is **deprecated for stacks**: `load_from_json` still reads legacy
+  `.json` assets/copies for compatibility, but nothing writes JSON. The **JNI bridge** still uses
+  JSON for now (being migrated to UniFFI — ADR-0012). The current card index is **not** persisted
   (reopens at card 1).
 
 When changing the cross-language contract, keep three things in sync: the serde structs in

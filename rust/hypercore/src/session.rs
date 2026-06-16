@@ -116,6 +116,13 @@ impl Session {
         serde_json::to_string_pretty(&self.stack).unwrap_or_else(|_| "{}".to_string())
     }
 
+    /// Serialize the stack to YAML — the format runtime working copies are now saved in, so
+    /// stacks are JSON-free end to end (ADR-0011). Machine-written, so block-scalar prettiness
+    /// isn't required; hand-authored assets are the readable ones.
+    pub fn to_yaml(&self) -> String {
+        yaml_serde::to_string(&self.stack).unwrap_or_else(|_| "{}".to_string())
+    }
+
     pub fn card_index(&self) -> usize {
         self.card_index
     }

@@ -1013,6 +1013,14 @@ fn invalid_yaml_errors_cleanly() {
     assert!(Session::load_from_yaml("name: [unterminated").is_err());
 }
 
+#[test]
+fn to_yaml_round_trips_through_load() {
+    // Runtime saves are YAML now (ADR-0011 Phase A): to_yaml -> load_from_yaml is the identity.
+    let s = Session::load_from_json(&sample_json()).unwrap();
+    let s2 = Session::load_from_yaml(&s.to_yaml()).unwrap();
+    assert_eq!(s.to_json(), s2.to_json());
+}
+
 /// Direct unit tests for the string-centric `Value` coercions.
 mod value_unit {
     use crate::script::value::{Value, fmt_number};

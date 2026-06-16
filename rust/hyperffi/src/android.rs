@@ -318,6 +318,19 @@ pub extern "system" fn Java_org_ghostsinthelab_app_hypercatalog_NativeBridge_nat
     java_string(&mut env, &json)
 }
 
+/// Serialize the current stack to YAML (for saving — the format working copies use now).
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_org_ghostsinthelab_app_hypercatalog_NativeBridge_nativeToYaml(
+    mut env: JNIEnv,
+    _class: JClass,
+    handle: jlong,
+) -> jstring {
+    let Some(s) = (unsafe { session(handle) }) else {
+        return java_string(&mut env, "");
+    };
+    java_string(&mut env, &s.to_yaml())
+}
+
 /// Release the handle. Safe to call once per handle.
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_org_ghostsinthelab_app_hypercatalog_NativeBridge_nativeFree(
