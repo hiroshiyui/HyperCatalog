@@ -12,13 +12,16 @@ architecture are recorded as ADRs under [`doc/adr/`](adr/).
 - **Stack player (browse mode).** Load a stack from JSON, render the current card, hit-test
   taps, run scripts along the HyperCard message path (object → card → background → stack),
   navigate between cards, edit field text through a host overlay, and persist on pause.
+- **Touchscreen gestures.** `on tap`/`doubleTap`/`longPress`/`swipeLeft|Right|Up|Down`, dispatched
+  as messages that bubble the same path. See [ADR-0009](adr/0009-touchscreen-gestures.md).
 - **HyperTalk subset in Rust.** Handlers (`on mouseUp`/`openCard`/…), `put`/`get`/`set`,
   `go`, `answer`/`beep`, `add`/`subtract`/`multiply`/`divide`, `if`/`repeat`, full expression
   precedence, field/button/card/stack property get/set, and `length`/`random`/`trunc`. The
   supported surface is documented in `rust/README.md`.
-- **JSON-over-JNI bridge.** Seven calls (`nativeLoad`, `nativeOpenCard`, `nativeRender`,
-  `nativeDispatchTouch`, `nativeSetFieldText`, `nativeToJson`, `nativeFree`) exchanging JSON
-  strings. See [ADR-0002](adr/0002-json-string-jni-bridge.md).
+- **JSON-over-JNI bridge.** Core player calls (`nativeLoad`, `nativeOpenCard`, `nativeRender`,
+  `nativeDispatchTouch`, `nativeDispatchGesture`, `nativeSetFieldText`, `nativeToJson`,
+  `nativeFree`), plus the authoring calls, exchanging JSON strings. See
+  [ADR-0002](adr/0002-json-string-jni-bridge.md).
 - **Sample content.** `assets/sample.json` (demo) and `assets/productivity.json` (To-Do,
   Counters, Tip Split, Calculator, Temperature, Length); the latter is the default stack.
 
@@ -90,3 +93,5 @@ Rust-native — see [ADR-0001](adr/0001-rust-native-hypertalk.md).
 - [ADR-0006 — HyperTalk geometry properties](adr/0006-geometry-properties.md)
 - [ADR-0007 — Text styling](adr/0007-text-styling.md)
 - [ADR-0008 — Native-view rendering](adr/0008-native-view-rendering.md) *(proposed)*
+- [ADR-0009 — Touchscreen gestures](adr/0009-touchscreen-gestures.md)
+- [ADR-0010 — Modern UI considerations](adr/0010-modern-ui-considerations.md)

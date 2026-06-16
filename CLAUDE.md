@@ -28,10 +28,13 @@ Android (Kotlin host, thin)                    rust/ workspace
   - `session.rs` — the **only** surface hosts call: `Session::load_from_json`,
     `render_current_card` (→ `RenderList` of draw primitives), `dispatch_touch` (hit-tests,
     runs scripts, returns `DispatchResult` with `host_cmds`/`focus_field`/`card_changed`),
-    `set_field_text`, `to_json`.
+    `dispatch_gesture` (post-WIMP touchscreen gestures — `tap`/`doubleTap`/`longPress`/`swipe*`
+    — sent as messages that bubble the same path; never focuses a field), `set_field_text`,
+    `to_json`.
 - **Message path** (HyperCard semantics, in `session::collect_path`): a tapped object's script
   runs first, then card → background → stack; the first matching handler wins. **Background
-  objects' own scripts must be searched too** — a past bug only looked at the card layer.
+  objects' own scripts must be searched too** — a past bug only looked at the card layer. Touch
+  gestures (`dispatch_gesture`) bubble this same path, so stack-level `on swipeLeft` works.
 - **Host effects** the core can't do itself (`answer`, `beep`, message-box `put`) come back as
   `HostEffect` values for the host to perform; the host also performs the EditText overlay for
   editable (unlocked) fields when `dispatch_touch` returns `focus_field`.

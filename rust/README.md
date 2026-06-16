@@ -51,6 +51,14 @@ expressions with `& && + - * / mod`, comparisons, `the <prop> of <object>`,
 `the number of cards`, `length()`, `field "name"` contents. Message path:
 object → card → background → stack.
 
+Touchscreen gestures (the post-WIMP companion to `mouseUp`) are dispatched as messages along
+the same path, so a stack-level `on swipeLeft` catches a swipe anywhere while an object can
+intercept its own: `on tap`, `on doubleTap`, `on longPress`,
+`on swipeLeft|swipeRight|swipeUp|swipeDown`. The host (`Session::dispatch_gesture`) feeds the
+gesture to the object under the gesture's start point; an unhandled gesture is a no-op, and a
+gesture never opens the field editor (only a plain tap, via `dispatch_touch`, focuses an
+unlocked field). See [`doc/adr/0009-touchscreen-gestures.md`](../doc/adr/0009-touchscreen-gestures.md).
+
 Object properties via `get`/`set the <prop> of <object>`:
 
 - buttons & fields: `name`, `visible`, `id` (read-only); buttons also `title`; fields also
