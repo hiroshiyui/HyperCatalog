@@ -47,19 +47,32 @@ was designed to accommodate it without a rewrite. See
 
 *Enables: build a card from scratch on-device.*
 
-### Phase 3 — Broader HyperTalk coverage
+### Phase 3 — Broader HyperTalk coverage *(in progress)*
 
-Fill documented interpreter gaps: geometric/text properties (`loc`/`rect`/`textStyle`), the
+Fill documented interpreter gaps. **Done:** geometric properties — `loc`/`location`,
+`rect`/`rectangle`, `width`/`height`, `top`/`left`/`bottom`/`right`, and read-only `id` on
+buttons and fields ([ADR-0006](adr/0006-geometry-properties.md)). **Remaining:** text
+properties (`textStyle`/`textSize`/`textFont`, which need new model + render fields), the
 message box UI, custom-message dispatch up the path (today `Stmt::Send` of an unknown command
 is a no-op), `visual effect`, and fuller `repeat`/`pass`/`return` semantics.
 
-*Enables: scripts that move/restyle objects and send their own messages.*
+*Enables: scripts that move/resize/show objects (done) and, later, restyle text and send their
+own messages.*
 
 ### Phase 4 — Persistence & rendering polish
 
 Persist the current card index (today a stack reopens at card 1). Multi-line fields with wrap
 and scrolling (today single-line). A stack picker / multiple stacks instead of one default
 asset.
+
+### Phase 5 — Android-native dialect *(north star)*
+
+A longer-horizon reference target: a HyperTalk dialect whose primitives are Android's, not 1987
+Mac's — Material components via **native-view rendering** (core emits a view tree, host builds
+real Material Views/Composables), the Activity lifecycle as system messages, a responsive dp
+layout system, and platform reach (permissions, intents, async, accessibility). Not scheduled;
+it steers decisions rather than describing shipped behavior. Full vision in
+[`doc/design/android-hypertalk-dialect.md`](design/android-hypertalk-dialect.md).
 
 ## Non-goals (for now)
 
@@ -73,3 +86,4 @@ Rust-native — see [ADR-0001](adr/0001-rust-native-hypertalk.md).
 - [ADR-0003 — Player-first, JSON-authored stacks](adr/0003-player-first-json-authored-stacks.md)
 - [ADR-0004 — In-app HyperTalk script editor](adr/0004-in-app-script-editor.md)
 - [ADR-0005 — On-device object authoring](adr/0005-object-authoring.md)
+- [ADR-0006 — HyperTalk geometry properties](adr/0006-geometry-properties.md)
