@@ -1,6 +1,7 @@
 # ADR-0002 — JSON-string JNI bridge between host and core
 
-- Status: Accepted
+- Status: **Superseded by [ADR-0012](0012-uniffi-bridge.md)** (UniFFI-generated typed bridge;
+  JSON is being deprecated on the wire). Records the original, now-historical decision.
 - Date: 2026-06-16 (records a decision made at project inception)
 
 ## Context

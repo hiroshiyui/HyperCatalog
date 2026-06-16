@@ -87,7 +87,7 @@ Rust-native — see [ADR-0001](adr/0001-rust-native-hypertalk.md).
 ## Decision records
 
 - [ADR-0001 — Rust-native HyperTalk interpreter](adr/0001-rust-native-hypertalk.md)
-- [ADR-0002 — JSON-string JNI bridge](adr/0002-json-string-jni-bridge.md)
+- [ADR-0002 — JSON-string JNI bridge](adr/0002-json-string-jni-bridge.md) *(superseded by ADR-0012)*
 - [ADR-0003 — Player-first, JSON-authored stacks](adr/0003-player-first-json-authored-stacks.md)
 - [ADR-0004 — In-app HyperTalk script editor](adr/0004-in-app-script-editor.md)
 - [ADR-0005 — On-device object authoring](adr/0005-object-authoring.md)
@@ -97,3 +97,4 @@ Rust-native — see [ADR-0001](adr/0001-rust-native-hypertalk.md).
 - [ADR-0009 — Touchscreen gestures](adr/0009-touchscreen-gestures.md)
 - [ADR-0010 — Modern UI considerations](adr/0010-modern-ui-considerations.md)
 - [ADR-0011 — YAML stack files](adr/0011-yaml-stack-files.md)
+- [ADR-0012 — UniFFI bridge](adr/0012-uniffi-bridge.md) *(supersedes ADR-0002)*
