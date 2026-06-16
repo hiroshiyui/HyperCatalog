@@ -60,6 +60,8 @@ pub enum HostEffect {
     Beep,
     /// `go [to] stack "Name"` — the host loads the named stack (serialized as `type:"gostack"`).
     GoStack(String),
+    /// `show stacks` — the host opens its stack picker (serialized as `type:"showstacks"`).
+    ShowStacks,
 }
 
 /// Result of dispatching a touch back to the host.
@@ -784,5 +786,6 @@ fn host_effect(c: &HostCmd) -> HostEffect {
         HostCmd::Message(s) => HostEffect::Message(s.clone()),
         HostCmd::Beep => HostEffect::Beep,
         HostCmd::GoStack(s) => HostEffect::GoStack(s.clone()),
+        HostCmd::ShowStacks => HostEffect::ShowStacks,
     }
 }

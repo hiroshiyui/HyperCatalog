@@ -3,9 +3,17 @@
   "width": 360,
   "height": 640,
   "script": "on swipeLeft\n  go next card\nend swipeLeft\n\non swipeRight\n  go previous card\nend swipeRight",
+  "backgrounds": [
+    {
+      "id": 1, "name": "nav",
+      "buttons": [
+        { "id": 90, "name": "stacks", "rect": {"x":10,"y":6,"w":110,"h":30}, "title": "Stacks", "style": "rectangle", "text_size": 14, "script": "on mouseUp\n  show stacks\nend mouseUp" }
+      ]
+    }
+  ],
   "cards": [
     {
-      "id": 1, "name": "Card One",
+      "id": 1, "name": "Card One", "background_id": 1,
       "fields": [
         { "id": 10, "name": "title", "rect": {"x":20,"y":40,"w":320,"h":60}, "text": "CARD 1", "locked": true, "text_size": 30, "text_align": "center", "text_style": "bold" },
         { "id": 11, "name": "hint", "rect": {"x":20,"y":120,"w":320,"h":120}, "text": "Swipe LEFT for next card. Long-press the button.", "locked": true, "text_size": 16, "text_align": "center" },
@@ -17,14 +25,14 @@
       ]
     },
     {
-      "id": 2, "name": "Card Two",
+      "id": 2, "name": "Card Two", "background_id": 1,
       "fields": [
         { "id": 20, "name": "title", "rect": {"x":20,"y":40,"w":320,"h":60}, "text": "CARD 2", "locked": true, "text_size": 30, "text_align": "center", "text_style": "bold" },
         { "id": 21, "name": "hint", "rect": {"x":20,"y":120,"w":320,"h":160}, "text": "Swipe RIGHT to go back. Swipe LEFT for card 3.", "locked": true, "text_size": 16, "text_align": "center" }
       ]
     },
     {
-      "id": 3, "name": "Card Three",
+      "id": 3, "name": "Card Three", "background_id": 1,
       "fields": [
         { "id": 30, "name": "title", "rect": {"x":20,"y":40,"w":320,"h":60}, "text": "CARD 3", "locked": true, "text_size": 30, "text_align": "center", "text_style": "bold" },
         { "id": 31, "name": "hint", "rect": {"x":20,"y":120,"w":320,"h":120}, "text": "Swipe RIGHT to go back to card 2.", "locked": true, "text_size": 16, "text_align": "center" }

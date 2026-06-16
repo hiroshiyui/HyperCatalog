@@ -8,9 +8,10 @@
       "name": "Nav",
       "fields": [],
       "buttons": [
-        { "id": 1, "name": "Home", "rect": { "x": 20, "y": 486, "w": 90, "h": 44 }, "title": "Home", "style": "rounded", "script": "on mouseUp\n  go first card\nend mouseUp" },
-        { "id": 2, "name": "Prev", "rect": { "x": 135, "y": 486, "w": 90, "h": 44 }, "title": "< Prev", "style": "rounded", "script": "on mouseUp\n  go previous card\nend mouseUp" },
-        { "id": 3, "name": "Next", "rect": { "x": 250, "y": 486, "w": 90, "h": 44 }, "title": "Next >", "style": "rounded", "script": "on mouseUp\n  go next card\nend mouseUp" }
+        { "id": 4, "name": "Stacks", "rect": { "x": 10, "y": 486, "w": 80, "h": 44 }, "title": "Stacks", "style": "rounded", "text_size": 14, "script": "on mouseUp\n  show stacks\nend mouseUp" },
+        { "id": 1, "name": "Home", "rect": { "x": 98, "y": 486, "w": 78, "h": 44 }, "title": "Home", "style": "rounded", "script": "on mouseUp\n  go first card\nend mouseUp" },
+        { "id": 2, "name": "Prev", "rect": { "x": 184, "y": 486, "w": 78, "h": 44 }, "title": "< Prev", "style": "rounded", "script": "on mouseUp\n  go previous card\nend mouseUp" },
+        { "id": 3, "name": "Next", "rect": { "x": 270, "y": 486, "w": 80, "h": 44 }, "title": "Next >", "style": "rounded", "script": "on mouseUp\n  go next card\nend mouseUp" }
       ],
       "script": ""
     }

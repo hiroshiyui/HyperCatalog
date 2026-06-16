@@ -462,6 +462,16 @@ fn go_to_stack_emits_host_effect() {
 }
 
 #[test]
+fn show_stacks_emits_host_effect() {
+    // `show stacks` asks the host to open its picker; it has no in-core effect.
+    let mut s = Session::load_from_json(&sample_json()).unwrap();
+    assert!(s.set_object_script(20, "on mouseUp\n  show stacks\nend mouseUp"));
+    let r = s.dispatch_touch(20.0, 120.0, "up");
+    assert!(r.error.is_none(), "error: {:?}", r.error);
+    assert_eq!(r.host_cmds, vec![HostEffect::ShowStacks]);
+}
+
+#[test]
 fn go_stack_without_to_parses() {
     let mut s = Session::load_from_json(&sample_json()).unwrap();
     assert!(s.set_object_script(20, "on mouseUp\n  go stack \"X\"\nend mouseUp"));

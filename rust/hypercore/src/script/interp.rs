@@ -24,6 +24,8 @@ pub enum HostCmd {
     Message(String),
     /// `go [to] stack "Name"` — the host loads the named stack (the core has no asset access).
     GoStack(String),
+    /// `show stacks` — the host opens its stack picker.
+    ShowStacks,
 }
 
 /// Identifies the object whose script is currently running (`me`).
@@ -257,6 +259,15 @@ impl<'s> Runtime<'s> {
                 Ok(Flow::ExitHandler)
             }
             "return" | "pass" => Ok(Flow::ExitHandler),
+            "show" => {
+                // `show stacks` asks the host to open its stack picker; the core has no UI.
+                if let Some(Expr::Var(w)) = args.first()
+                    && w.eq_ignore_ascii_case("stacks")
+                {
+                    self.host.push(HostCmd::ShowStacks);
+                }
+                Ok(Flow::Next)
+            }
             // Unknown custom commands are no-ops in the MVP runtime.
             _ => Ok(Flow::Next),
         }

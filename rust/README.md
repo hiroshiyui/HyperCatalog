@@ -46,7 +46,7 @@ The Android app builds the `.so` automatically: `./gradlew :app:assembleDebug` r
 
 Handlers `on <msg> ... end <msg>` (`mouseUp`, `openCard`, `openStack`); commands `put`,
 `get`, `set ... of ... to`, `go [to] next|previous|first|last|card "x"|card N|stack "x"`, `answer`,
-`beep`, `add/subtract/multiply/divide`; `if/then/else/end if`; `repeat with`/`repeat N times`;
+`beep`, `show stacks`, `add/subtract/multiply/divide`; `if/then/else/end if`; `repeat with`/`repeat N times`;
 expressions with `& && + - * / mod`, comparisons, `the <prop> of <object>`,
 `the number of cards`, `length()`, `field "name"` contents. Message path:
 object → card → background → stack.

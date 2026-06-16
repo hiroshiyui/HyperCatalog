@@ -31,10 +31,11 @@ import java.io.File
 
 /**
  * Hosts the [CardView] for the active stack. Reopens the last-used stack (or the bundled
- * default), offers a "Stacks" picker to switch between bundled assets and their saved working
- * copies, wires script side effects to platform UI (dialogs/beeps/toasts), provides an
+ * default), wires script side effects to platform UI (dialogs/beeps/toasts), provides an
  * [EditText] overlay for editing fields, and saves each stack's edits to its own copy on
- * pause/switch (see [stacksDir]).
+ * pause/switch (see [stacksDir]). Stack switching is driven from HyperTalk: `show stacks`
+ * opens the picker ([showStackPicker]) and `go to stack "Name"` jumps directly — there is no
+ * host chrome button for it.
  */
 class MainActivity : AppCompatActivity(), CardView.Callbacks {
 
@@ -47,7 +48,6 @@ class MainActivity : AppCompatActivity(), CardView.Callbacks {
     private lateinit var propsBtn: Button
     private lateinit var scriptBtn: Button
     private lateinit var delBtn: Button
-    private lateinit var stacksBtn: Button
     private var editingFieldId: Int = -1
 
     /** Key (asset/file basename, no `.json`) of the stack currently loaded. */
@@ -140,18 +140,6 @@ class MainActivity : AppCompatActivity(), CardView.Callbacks {
             }
         }
         root.addView(editToggle)
-
-        // Stack picker, top-start (opposite the Edit toggle).
-        stacksBtn = Button(this).apply {
-            text = "Stacks"
-            layoutParams = FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.WRAP_CONTENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT,
-                Gravity.TOP or Gravity.START,
-            )
-            setOnClickListener { showStackPicker() }
-        }
-        root.addView(stacksBtn)
 
         setContentView(root)
         ViewCompat.setOnApplyWindowInsetsListener(root) { v, insets ->
@@ -292,6 +280,7 @@ class MainActivity : AppCompatActivity(), CardView.Callbacks {
                     .show()
                 "message" -> Toast.makeText(this, e.text, Toast.LENGTH_SHORT).show()
                 "gostack" -> goToStackByName(e.text) // `go to stack "Name"`
+                "showstacks" -> showStackPicker() // `show stacks`
             }
         }
     }
