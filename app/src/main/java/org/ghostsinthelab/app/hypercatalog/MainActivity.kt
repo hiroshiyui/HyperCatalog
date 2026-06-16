@@ -23,7 +23,7 @@ import java.io.File
 
 /**
  * Hosts the [CardView] for the active stack. Loads a stack (a previously saved one if
- * present, otherwise the bundled sample), wires script side effects to platform UI
+ * present, otherwise the bundled productivity stack), wires script side effects to platform UI
  * (dialogs/beeps/toasts), provides an [EditText] overlay for editing fields, and saves the
  * stack on pause.
  */
@@ -86,7 +86,7 @@ class MainActivity : AppCompatActivity(), CardView.Callbacks {
             runCatching { savedStack.readText() }.getOrNull()
         } else {
             null
-        } ?: assets.open("sample.json").bufferedReader().use { it.readText() }
+        } ?: assets.open("productivity.json").bufferedReader().use { it.readText() }
 
         handle = NativeBridge.nativeLoad(json)
         if (handle == 0L) {
