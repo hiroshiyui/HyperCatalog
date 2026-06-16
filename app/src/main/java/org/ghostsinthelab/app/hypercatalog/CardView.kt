@@ -86,10 +86,8 @@ class CardView @JvmOverloads constructor(
     private var cardH = 540f
     private var items: List<DrawItem> = emptyList()
 
-    // card→view mapping (letterboxed)
-    private var scale = 1f
-    private var offsetX = 0f
-    private var offsetY = 0f
+    // card→view mapping (letterboxed); see CardTransform for the pure math.
+    private var tf = CardTransform(1f, 0f, 0f)
 
     private val cardPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE }
     private val fieldFill = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE }
@@ -171,15 +169,16 @@ class CardView @JvmOverloads constructor(
     }
 
     private fun recomputeTransform(viewW: Float, viewH: Float) {
-        scale = minOf(viewW / cardW, viewH / cardH)
-        offsetX = (viewW - cardW * scale) / 2f
-        offsetY = (viewH - cardH * scale) / 2f
+        tf = CardTransform.fit(viewW, viewH, cardW, cardH)
     }
 
     override fun onDraw(canvas: Canvas) {
         recomputeTransform(width.toFloat(), height.toFloat())
         // card paper
-        canvas.drawRect(offsetX, offsetY, offsetX + cardW * scale, offsetY + cardH * scale, cardPaint)
+        canvas.drawRect(
+            tf.cardToViewX(0f), tf.cardToViewY(0f),
+            tf.cardToViewX(cardW), tf.cardToViewY(cardH), cardPaint,
+        )
 
         for (item in items) {
             if (!item.visible) continue
@@ -209,7 +208,7 @@ class CardView @JvmOverloads constructor(
                 canvas.drawRect(r, buttonStroke)
             }
             else -> { // rounded
-                val radius = 12f * scale
+                val radius = 12f * tf.scale
                 canvas.drawRoundRect(r, radius, radius, buttonFill)
                 canvas.drawRoundRect(r, radius, radius, buttonStroke)
             }
@@ -227,7 +226,7 @@ class CardView @JvmOverloads constructor(
         applyTextStyle(textPaint, item)
         // single-line text, vertically centered, horizontally aligned per textAlign
         val baseline = r.centerY() - (textPaint.descent() + textPaint.ascent()) / 2f
-        val pad = 6f * scale
+        val pad = 6f * tf.scale
         val (x, align) = when (item.textAlign.lowercase()) {
             "center" -> r.centerX() to Paint.Align.CENTER
             "right" -> (r.right - pad) to Paint.Align.RIGHT
@@ -242,7 +241,7 @@ class CardView @JvmOverloads constructor(
 
     /** Configure a text paint from an item's font/size/style attributes (scaled to view px). */
     private fun applyTextStyle(paint: Paint, item: DrawItem) {
-        paint.textSize = (if (item.textSize > 0f) item.textSize else 16f) * scale
+        paint.textSize = (if (item.textSize > 0f) item.textSize else 16f) * tf.scale
         val s = item.textStyle.lowercase()
         val flags = (if ("bold" in s) Typeface.BOLD else 0) or
             (if ("italic" in s) Typeface.ITALIC else 0)
@@ -257,18 +256,18 @@ class CardView @JvmOverloads constructor(
     }
 
     private fun toView(item: DrawItem): RectF = RectF(
-        offsetX + item.x * scale,
-        offsetY + item.y * scale,
-        offsetX + (item.x + item.w) * scale,
-        offsetY + (item.y + item.h) * scale,
+        tf.cardToViewX(item.x),
+        tf.cardToViewY(item.y),
+        tf.cardToViewX(item.x + item.w),
+        tf.cardToViewY(item.y + item.h),
     )
 
     /** Map a card-space rect (left,top,right,bottom) to view coordinates. */
     private fun cardRectToView(c: RectF): RectF = RectF(
-        offsetX + c.left * scale,
-        offsetY + c.top * scale,
-        offsetX + c.right * scale,
-        offsetY + c.bottom * scale,
+        tf.cardToViewX(c.left),
+        tf.cardToViewY(c.top),
+        tf.cardToViewX(c.right),
+        tf.cardToViewY(c.bottom),
     )
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
@@ -284,8 +283,8 @@ class CardView @JvmOverloads constructor(
         callbacks?.commitPendingEdit()
 
         // view → card coordinates
-        val cx = (event.x - offsetX) / scale
-        val cy = (event.y - offsetY) / scale
+        val cx = tf.viewToCardX(event.x)
+        val cy = tf.viewToCardY(event.y)
 
         val result = JSONObject(NativeBridge.nativeDispatchTouch(handle, cx, cy, "up"))
 
@@ -325,8 +324,8 @@ class CardView @JvmOverloads constructor(
      * locally (no bridge calls), UP commits the new rect to the core once.
      */
     private fun handleEditTouch(event: MotionEvent): Boolean {
-        val cx = (event.x - offsetX) / scale
-        val cy = (event.y - offsetY) / scale
+        val cx = tf.viewToCardX(event.x)
+        val cy = tf.viewToCardY(event.y)
         when (event.action) {
             MotionEvent.ACTION_DOWN -> {
                 callbacks?.commitPendingEdit()
@@ -389,7 +388,7 @@ class CardView @JvmOverloads constructor(
     private fun inHandle(item: DrawItem, cx: Float, cy: Float): Boolean {
         val hx = item.x + item.w
         val hy = item.y + item.h
-        val s = handleHalfPx / scale
+        val s = handleHalfPx / tf.scale
         return cx in (hx - s)..(hx + s) && cy in (hy - s)..(hy + s)
     }
 }
