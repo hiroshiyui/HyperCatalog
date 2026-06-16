@@ -449,6 +449,27 @@ fn answer_produces_host_effect() {
 }
 
 #[test]
+fn go_to_stack_emits_host_effect() {
+    // `go to stack "X"` can't be done in-core (no asset access); it returns a host effect.
+    let mut s = Session::load_from_json(&sample_json()).unwrap();
+    assert!(s.set_object_script(20, "on mouseUp\n  go to stack \"Other\"\nend mouseUp"));
+    let r = s.dispatch_touch(20.0, 120.0, "up");
+    assert!(r.error.is_none(), "error: {:?}", r.error);
+    assert_eq!(r.host_cmds, vec![HostEffect::GoStack("Other".to_string())]);
+    // The switch is the host's job; the current session's card index is untouched.
+    assert!(!r.card_changed);
+    assert_eq!(s.card_index(), 0);
+}
+
+#[test]
+fn go_stack_without_to_parses() {
+    let mut s = Session::load_from_json(&sample_json()).unwrap();
+    assert!(s.set_object_script(20, "on mouseUp\n  go stack \"X\"\nend mouseUp"));
+    let r = s.dispatch_touch(20.0, 120.0, "up");
+    assert_eq!(r.host_cmds, vec![HostEffect::GoStack("X".to_string())]);
+}
+
+#[test]
 fn background_button_script_runs() {
     // A nav button living on the shared background must have its own handler run.
     let json = r#"{

@@ -64,6 +64,8 @@ pub enum Destination {
     LastCard,
     CardByName(Expr),
     CardByNumber(Expr),
+    /// `go [to] stack "Name"` — a host effect; the core has no asset access to load it.
+    Stack(Expr),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]

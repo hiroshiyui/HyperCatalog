@@ -58,6 +58,8 @@ pub enum HostEffect {
     Answer(String),
     Message(String),
     Beep,
+    /// `go [to] stack "Name"` — the host loads the named stack (serialized as `type:"gostack"`).
+    GoStack(String),
 }
 
 /// Result of dispatching a touch back to the host.
@@ -781,5 +783,6 @@ fn host_effect(c: &HostCmd) -> HostEffect {
         HostCmd::Answer(s) => HostEffect::Answer(s.clone()),
         HostCmd::Message(s) => HostEffect::Message(s.clone()),
         HostCmd::Beep => HostEffect::Beep,
+        HostCmd::GoStack(s) => HostEffect::GoStack(s.clone()),
     }
 }

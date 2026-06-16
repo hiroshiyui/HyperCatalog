@@ -233,6 +233,8 @@ impl Parser {
         } else if self.eat_kw("last") {
             self.eat_kw("card");
             Destination::LastCard
+        } else if self.eat_kw("stack") {
+            Destination::Stack(self.parse_primary()?)
         } else if self.is_any(&["card", "cd"]) {
             self.advance();
             let sel = self.parse_primary()?;

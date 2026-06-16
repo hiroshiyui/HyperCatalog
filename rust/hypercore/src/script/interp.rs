@@ -22,6 +22,8 @@ pub enum HostCmd {
     Beep,
     /// `put "..."` with no container — message-box output.
     Message(String),
+    /// `go [to] stack "Name"` — the host loads the named stack (the core has no asset access).
+    GoStack(String),
 }
 
 /// Identifies the object whose script is currently running (`me`).
@@ -261,6 +263,13 @@ impl<'s> Runtime<'s> {
     }
 
     fn exec_go(&mut self, dest: &Destination, env: &mut Env, me: Me) -> Result<(), String> {
+        // Switching stacks is a host effect: the core has no asset access to load another
+        // stack, so it asks the host (which resolves the name and reloads the session).
+        if let Destination::Stack(e) = dest {
+            let name = self.eval(e, env, me)?.as_text();
+            self.host.push(HostCmd::GoStack(name));
+            return Ok(());
+        }
         let n = self.stack.cards.len();
         if n == 0 {
             return Ok(());
@@ -282,6 +291,8 @@ impl<'s> Runtime<'s> {
                     .position(|c| c.name.eq_ignore_ascii_case(&name))
                     .ok_or_else(|| format!("no card named \"{name}\""))?
             }
+            // Handled above; the card-index logic doesn't apply to a stack switch.
+            Destination::Stack(_) => return Ok(()),
         };
         self.card_index = new;
         Ok(())

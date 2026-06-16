@@ -12,7 +12,8 @@
         { "id": 12, "name": "status", "rect": {"x":20,"y":430,"w":320,"h":50}, "text": "status: idle", "locked": true, "text_size": 18, "text_align": "center" }
       ],
       "buttons": [
-        { "id": 13, "name": "press", "rect": {"x":80,"y":300,"w":200,"h":80}, "title": "Long-press me", "text_size": 18, "script": "on longPress\n  put \"status: LONG-PRESSED\" into field \"status\"\nend longPress\n\non doubleTap\n  put \"status: DOUBLE-TAPPED\" into field \"status\"\nend doubleTap" }
+        { "id": 13, "name": "press", "rect": {"x":80,"y":300,"w":200,"h":80}, "title": "Long-press me", "text_size": 18, "script": "on longPress\n  put \"status: LONG-PRESSED\" into field \"status\"\nend longPress\n\non doubleTap\n  put \"status: DOUBLE-TAPPED\" into field \"status\"\nend doubleTap" },
+        { "id": 14, "name": "toProd", "rect": {"x":80,"y":500,"w":200,"h":50}, "title": "Open Productivity", "text_size": 16, "style": "rectangle", "script": "on mouseUp\n  go to stack \"Productivity\"\nend mouseUp" }
       ]
     },
     {

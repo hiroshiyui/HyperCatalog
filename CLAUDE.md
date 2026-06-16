@@ -35,8 +35,9 @@ Android (Kotlin host, thin)                    rust/ workspace
   runs first, then card → background → stack; the first matching handler wins. **Background
   objects' own scripts must be searched too** — a past bug only looked at the card layer. Touch
   gestures (`dispatch_gesture`) bubble this same path, so stack-level `on swipeLeft` works.
-- **Host effects** the core can't do itself (`answer`, `beep`, message-box `put`) come back as
-  `HostEffect` values for the host to perform; the host also performs the EditText overlay for
+- **Host effects** the core can't do itself (`answer`, `beep`, message-box `put`, and
+  `go [to] stack "Name"` — the core has no asset access) come back as `HostEffect` values for the
+  host to perform; the host also performs the EditText overlay for
   editable (unlocked) fields when `dispatch_touch` returns `focus_field`.
 - **Rendering**: the core emits card-coordinate draw primitives; `CardView` letterbox-scales
   them onto a Canvas and maps touches back. Redraws are event-driven (taps), not per-frame —
