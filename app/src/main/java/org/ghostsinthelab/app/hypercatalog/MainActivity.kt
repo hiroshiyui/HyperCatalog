@@ -30,10 +30,11 @@ import org.json.JSONObject
 import java.io.File
 
 /**
- * Hosts the [CardView] for the active stack. Loads a stack (a previously saved one if
- * present, otherwise the bundled productivity stack), wires script side effects to platform UI
- * (dialogs/beeps/toasts), provides an [EditText] overlay for editing fields, and saves the
- * stack on pause.
+ * Hosts the [CardView] for the active stack. Reopens the last-used stack (or the bundled
+ * default), offers a "Stacks" picker to switch between bundled assets and their saved working
+ * copies, wires script side effects to platform UI (dialogs/beeps/toasts), provides an
+ * [EditText] overlay for editing fields, and saves each stack's edits to its own copy on
+ * pause/switch (see [stacksDir]).
  */
 class MainActivity : AppCompatActivity(), CardView.Callbacks {
 
@@ -46,9 +47,25 @@ class MainActivity : AppCompatActivity(), CardView.Callbacks {
     private lateinit var propsBtn: Button
     private lateinit var scriptBtn: Button
     private lateinit var delBtn: Button
+    private lateinit var stacksBtn: Button
     private var editingFieldId: Int = -1
 
-    private val savedStack: File by lazy { File(filesDir, "stack.json") }
+    /** Key (asset/file basename, no `.json`) of the stack currently loaded. */
+    private var currentKey: String = ""
+
+    /** Per-stack working copies: `filesDir/stacks/<key>.json`. Each stack persists its own
+     *  edits, so switching never clobbers another stack. */
+    private val stacksDir: File by lazy { File(filesDir, "stacks") }
+
+    /** Remembers which stack to reopen on next launch. */
+    private val lastStackFile: File by lazy { File(filesDir, "last_stack") }
+
+    /** Legacy single-slot save from before per-stack copies; migrated on first run. */
+    private val legacyStack: File by lazy { File(filesDir, "stack.json") }
+
+    companion object {
+        private const val DEFAULT_STACK = "productivity"
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -124,6 +141,18 @@ class MainActivity : AppCompatActivity(), CardView.Callbacks {
         }
         root.addView(editToggle)
 
+        // Stack picker, top-start (opposite the Edit toggle).
+        stacksBtn = Button(this).apply {
+            text = "Stacks"
+            layoutParams = FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                Gravity.TOP or Gravity.START,
+            )
+            setOnClickListener { showStackPicker() }
+        }
+        root.addView(stacksBtn)
+
         setContentView(root)
         ViewCompat.setOnApplyWindowInsetsListener(root) { v, insets ->
             val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
@@ -131,24 +160,123 @@ class MainActivity : AppCompatActivity(), CardView.Callbacks {
             insets
         }
 
-        loadStack()
+        loadInitialStack()
     }
 
-    private fun loadStack() {
-        val json = if (savedStack.exists()) {
-            runCatching { savedStack.readText() }.getOrNull()
-        } else {
-            null
-        } ?: assets.open("productivity.json").bufferedReader().use { it.readText() }
+    // --- stack loading & switching ---
 
-        handle = NativeBridge.nativeLoad(json)
-        if (handle == 0L) {
-            Toast.makeText(this, "Failed to load stack", Toast.LENGTH_LONG).show()
+    /** On launch, reopen the last-used stack (or the default), migrating any legacy save. */
+    private fun loadInitialStack() {
+        migrateLegacySavedStack()
+        val remembered = lastStackFile.takeIf { it.exists() }
+            ?.let { runCatching { it.readText().trim() }.getOrNull() }
+            ?.takeIf { it.isNotEmpty() }
+        val key = (remembered ?: DEFAULT_STACK).let { if (stackJsonFor(it) != null) it else DEFAULT_STACK }
+        loadStackKey(key)
+    }
+
+    /** Load the stack named [key]: its saved working copy if present, else the bundled asset.
+     *  Frees the previous handle. Remembers [key] as the stack to reopen. */
+    private fun loadStackKey(key: String) {
+        val json = stackJsonFor(key) ?: run {
+            Toast.makeText(this, "No stack \"$key\"", Toast.LENGTH_LONG).show()
             return
         }
+        val newHandle = NativeBridge.nativeLoad(json)
+        if (newHandle == 0L) {
+            Toast.makeText(this, "Failed to load stack \"$key\"", Toast.LENGTH_LONG).show()
+            return
+        }
+        if (handle != 0L) NativeBridge.nativeFree(handle)
+        handle = newHandle
+        currentKey = key
         cardView.handle = handle
         NativeBridge.nativeOpenCard(handle)
         cardView.refresh()
+        runCatching { lastStackFile.writeText(key) }
+    }
+
+    /** Save the current stack to its own working copy, so edits survive a switch or restart. */
+    private fun saveCurrentStack() {
+        if (handle != 0L && currentKey.isNotEmpty()) {
+            stacksDir.mkdirs()
+            runCatching {
+                File(stacksDir, "$currentKey.json").writeText(NativeBridge.nativeToJson(handle))
+            }
+        }
+    }
+
+    private fun showStackPicker() {
+        commitPendingEdit()
+        val keys = availableStackKeys()
+        if (keys.isEmpty()) return
+        val labels = keys.map { key ->
+            stackDisplayName(key) + if (key == currentKey) "  (current)" else ""
+        }.toTypedArray()
+        AlertDialog.Builder(this)
+            .setTitle("Open stack")
+            .setItems(labels) { _, which -> switchToStack(keys[which]) }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    /** Fulfil a script's `go to stack "Name"`: match a stack by its `name` (case-insensitive)
+     *  and switch to it, or toast if no such stack exists. */
+    private fun goToStackByName(name: String) {
+        val key = availableStackKeys().firstOrNull { stackDisplayName(it).equals(name, ignoreCase = true) }
+        if (key == null) {
+            Toast.makeText(this, "No stack \"$name\"", Toast.LENGTH_LONG).show()
+            return
+        }
+        switchToStack(key) // no-ops if it's already the current stack
+    }
+
+    private fun switchToStack(key: String) {
+        if (key == currentKey) return
+        commitPendingEdit()
+        if (cardView.editMode) { // leave edit mode for a clean switch
+            cardView.editMode = false
+            editToggle.text = "Edit"
+            palette.visibility = View.GONE
+        }
+        saveCurrentStack()
+        loadStackKey(key)
+    }
+
+    /** Bundled asset stacks unioned with any saved working copies, by key. */
+    private fun availableStackKeys(): List<String> {
+        val fromAssets = runCatching {
+            assets.list("")?.filter { it.endsWith(".json") }?.map { it.removeSuffix(".json") }
+        }.getOrNull().orEmpty()
+        val fromSaved = (stacksDir.listFiles { f -> f.name.endsWith(".json") } ?: emptyArray())
+            .map { it.name.removeSuffix(".json") }
+        return (fromAssets + fromSaved).distinct().sorted()
+    }
+
+    /** The effective JSON for [key] — the saved working copy if present, else the asset. */
+    private fun stackJsonFor(key: String): String? {
+        File(stacksDir, "$key.json").takeIf { it.exists() }?.let { f ->
+            runCatching { return f.readText() }
+        }
+        return runCatching {
+            assets.open("$key.json").bufferedReader().use { it.readText() }
+        }.getOrNull()
+    }
+
+    /** A stack's `name` for the picker, falling back to its key. */
+    private fun stackDisplayName(key: String): String =
+        stackJsonFor(key)
+            ?.let { runCatching { JSONObject(it).optString("name") }.getOrNull() }
+            ?.takeIf { it.isNotEmpty() }
+            ?: key
+
+    /** One-time migration: the old single `stack.json` becomes the default stack's copy. */
+    private fun migrateLegacySavedStack() {
+        if (!legacyStack.exists()) return
+        stacksDir.mkdirs()
+        val dest = File(stacksDir, "$DEFAULT_STACK.json")
+        if (!dest.exists()) runCatching { legacyStack.copyTo(dest) }
+        runCatching { legacyStack.delete() }
     }
 
     // --- CardView.Callbacks ---
@@ -163,6 +291,7 @@ class MainActivity : AppCompatActivity(), CardView.Callbacks {
                     .setPositiveButton(android.R.string.ok, null)
                     .show()
                 "message" -> Toast.makeText(this, e.text, Toast.LENGTH_SHORT).show()
+                "gostack" -> goToStackByName(e.text) // `go to stack "Name"`
             }
         }
     }
@@ -414,9 +543,7 @@ class MainActivity : AppCompatActivity(), CardView.Callbacks {
     override fun onPause() {
         super.onPause()
         if (editor.visibility == View.VISIBLE) commitEdit()
-        if (handle != 0L) {
-            runCatching { savedStack.writeText(NativeBridge.nativeToJson(handle)) }
-        }
+        saveCurrentStack()
     }
 
     override fun onDestroy() {
