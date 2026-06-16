@@ -6,6 +6,7 @@ import android.media.AudioManager
 import android.media.ToneGenerator
 import android.os.Bundle
 import android.text.InputType
+import android.util.Log
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
@@ -74,6 +75,9 @@ class MainActivity : AppCompatActivity(), CardView.Callbacks {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+
+        // UniFFI bridge spike (ADR-0012): proves the generated typed bridge links end-to-end.
+        Log.i("UniFFI", "hc_ping -> ${uniffi.hyperffi.hcPing()}")
 
         root = FrameLayout(this)
         root.id = View.generateViewId()

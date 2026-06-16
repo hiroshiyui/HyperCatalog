@@ -1,7 +1,43 @@
 import java.util.Properties
+import javax.inject.Inject
+import org.gradle.process.ExecOperations
 
 plugins {
     alias(libs.plugins.android.application)
+}
+
+// Typed task so the generated UniFFI Kotlin can be wired via the AGP Variant API
+// (addGeneratedSourceDirectory) — AGP 9 rejects Provider paths on the legacy SourceSet API.
+abstract class UniffiBindgenTask @Inject constructor(
+    private val execOps: ExecOperations,
+) : DefaultTask() {
+    @get:Internal abstract val cargoExe: Property<String>
+    @get:Internal abstract val rustWorkingDir: DirectoryProperty
+    @get:OutputDirectory abstract val outputDir: DirectoryProperty
+
+    @TaskAction
+    fun generate() {
+        val rust = rustWorkingDir.get().asFile
+        val cargo = cargoExe.get()
+        // Read UniFFI metadata from a HOST (unstripped, debug) cdylib: the Android release .so is
+        // stripped (`strip = true`), so library-mode bindgen would find no metadata there. The
+        // generated Kotlin is target-independent; at runtime JNA calls the packaged Android .so.
+        execOps.exec {
+            workingDir = rust
+            commandLine(cargo, "build", "--quiet", "-p", "hyperffi")
+        }
+        val out = outputDir.get().asFile
+        out.mkdirs()
+        execOps.exec {
+            workingDir = rust
+            commandLine(
+                cargo, "run", "--quiet", "-p", "hyperffi", "--bin", "uniffi-bindgen",
+                "--", "generate",
+                "--library", rust.resolve("target/debug/libhyperffi.so").absolutePath,
+                "--language", "kotlin", "--no-format", "--out-dir", out.absolutePath,
+            )
+        }
+    }
 }
 
 // NDK revision used both by AGP and by the cargo-ndk cross-compile task.
@@ -49,6 +85,8 @@ dependencies {
     implementation(libs.androidx.constraintlayout)
     implementation(libs.androidx.core.ktx)
     implementation(libs.material)
+    // UniFFI-generated Kotlin bindings load the native library via JNA (ADR-0012).
+    implementation("net.java.dev.jna:jna:5.15.0@aar")
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(libs.androidx.junit)
@@ -103,4 +141,25 @@ val cargoNdkBuild by tasks.registering(Exec::class) {
 // Ensure the .so exists before the APK is assembled.
 tasks.named("preBuild") {
     dependsOn(cargoNdkBuild)
+}
+
+// --- UniFFI Kotlin bindings (ADR-0012) -------------------------------------
+// Generate the typed Kotlin bridge from the built .so (UniFFI "library mode") and feed it into
+// the Kotlin source set. Wired via a plain Exec task for the same reason as cargoNdkBuild — no
+// third-party Gradle plugin under AGP 9. Generated bindings require the JNA dependency below.
+val uniffiBindgen by tasks.registering(UniffiBindgenTask::class) {
+    group = "rust"
+    description = "Generate UniFFI Kotlin bindings for hyperffi (library mode)."
+    cargoExe.set(resolveCargo())
+    rustWorkingDir.set(rustDir)
+    // NB: do not set `outputDir` here — AGP's addGeneratedSourceDirectory owns its location.
+    onlyIf { file("$rustDir/Cargo.toml").exists() }
+}
+
+// Wire the generated bindings into each variant's Kotlin sources (AGP Variant API); this also
+// makes Kotlin compilation depend on the generator.
+androidComponents {
+    onVariants { variant ->
+        variant.sources.kotlin?.addGeneratedSourceDirectory(uniffiBindgen, UniffiBindgenTask::outputDir)
+    }
 }
