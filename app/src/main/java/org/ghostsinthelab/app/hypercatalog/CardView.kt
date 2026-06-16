@@ -47,15 +47,35 @@ class CardView @JvmOverloads constructor(
         /** Commit any in-progress field edit before this tap is handled. */
         fun commitPendingEdit()
 
-        /** Edit-mode tap: the user picked object [objectId] to edit its script. */
+        /** Open the script editor for [objectId] (invoked from the host's edit palette). */
         fun onEditScript(objectId: Int)
+
+        /** The edit-mode selection changed; [objectId] is -1 when nothing is selected. */
+        fun onSelectionChanged(objectId: Int)
     }
 
     var handle: Long = 0L
     var callbacks: Callbacks? = null
 
-    /** When true, a tap selects the object under it for script editing instead of running it. */
+    /** When true, taps select objects and drags move/resize them, instead of running scripts. */
     var editMode: Boolean = false
+        set(value) {
+            field = value
+            if (!value) clearSelection() else invalidate()
+        }
+
+    /** Currently selected object id in edit mode, or -1. */
+    var selectedId: Int = -1
+        private set
+
+    private enum class Drag { NONE, MOVE, RESIZE }
+    private var drag = Drag.NONE
+    private var grabDx = 0f // pointer offset within object (card units), for MOVE
+    private var grabDy = 0f
+    /** Live rect during a drag, in card coords (left,top,right,bottom); null when not dragging. */
+    private var draft: RectF? = null
+    private val handleHalfPx = 16f // resize-handle half-size, in view pixels
+    private val minObject = 12f // minimum object size in card units (mirrors core clamp)
 
     private var cardW = 360f
     private var cardH = 540f
@@ -79,9 +99,33 @@ class CardView @JvmOverloads constructor(
     private val buttonText = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.BLACK; textAlign = Paint.Align.CENTER
     }
+    private val selectStroke = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.parseColor("#1565C0"); style = Paint.Style.STROKE; strokeWidth = 3f
+    }
+    private val handleFill = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.parseColor("#1565C0")
+    }
 
     init {
         setBackgroundColor(Color.parseColor("#B0BEC5"))
+    }
+
+    /** Select an object by id (e.g. a freshly created one) and repaint. */
+    fun selectObject(id: Int) {
+        selectedId = id
+        invalidate()
+        callbacks?.onSelectionChanged(id)
+    }
+
+    /** Clear any edit-mode selection. */
+    fun clearSelection() {
+        drag = Drag.NONE
+        draft = null
+        if (selectedId != -1) {
+            selectedId = -1
+            callbacks?.onSelectionChanged(-1)
+        }
+        invalidate()
     }
 
     /** Re-fetch the current card's render list from the core and repaint. */
@@ -133,12 +177,22 @@ class CardView @JvmOverloads constructor(
 
         for (item in items) {
             if (!item.visible) continue
-            val r = toView(item)
+            val dragging = editMode && item.id == selectedId && draft != null
+            val r = if (dragging) cardRectToView(draft!!) else toView(item)
             when (item.kind) {
                 "button" -> drawButton(canvas, item, r)
                 "field" -> drawField(canvas, item, r)
             }
+            if (editMode && item.id == selectedId) drawSelection(canvas, r)
         }
+    }
+
+    private fun drawSelection(canvas: Canvas, r: RectF) {
+        canvas.drawRect(r, selectStroke)
+        canvas.drawRect(
+            r.right - handleHalfPx, r.bottom - handleHalfPx,
+            r.right + handleHalfPx, r.bottom + handleHalfPx, handleFill,
+        )
     }
 
     private fun drawButton(canvas: Canvas, item: DrawItem, r: RectF) {
@@ -178,10 +232,21 @@ class CardView @JvmOverloads constructor(
         offsetY + (item.y + item.h) * scale,
     )
 
+    /** Map a card-space rect (left,top,right,bottom) to view coordinates. */
+    private fun cardRectToView(c: RectF): RectF = RectF(
+        offsetX + c.left * scale,
+        offsetY + c.top * scale,
+        offsetX + c.right * scale,
+        offsetY + c.bottom * scale,
+    )
+
     override fun onTouchEvent(event: MotionEvent): Boolean {
+        if (handle == 0L) return true
+        if (editMode) return handleEditTouch(event)
+
+        // Browse mode acts on a completed tap only.
         if (event.action == MotionEvent.ACTION_DOWN) return true
         if (event.action != MotionEvent.ACTION_UP) return false
-        if (handle == 0L) return true
 
         // A tap anywhere first commits any field being edited (HyperCard-style), so the
         // tapped script sees the up-to-date field contents.
@@ -190,13 +255,6 @@ class CardView @JvmOverloads constructor(
         // view → card coordinates
         val cx = (event.x - offsetX) / scale
         val cy = (event.y - offsetY) / scale
-
-        // Edit mode: select the object under the tap and edit its script — don't run it.
-        if (editMode) {
-            val id = NativeBridge.nativeObjectAt(handle, cx, cy)
-            if (id >= 0) callbacks?.onEditScript(id)
-            return true
-        }
 
         val result = JSONObject(NativeBridge.nativeDispatchTouch(handle, cx, cy, "up"))
 
@@ -229,5 +287,78 @@ class CardView @JvmOverloads constructor(
             val o = arr.getJSONObject(i)
             HostEffect(o.optString("type"), o.optString("text"))
         }
+    }
+
+    /**
+     * Edit-mode touch: DOWN selects (or grabs the resize handle), MOVE drags a draft rect
+     * locally (no bridge calls), UP commits the new rect to the core once.
+     */
+    private fun handleEditTouch(event: MotionEvent): Boolean {
+        val cx = (event.x - offsetX) / scale
+        val cy = (event.y - offsetY) / scale
+        when (event.action) {
+            MotionEvent.ACTION_DOWN -> {
+                callbacks?.commitPendingEdit()
+                val sel = items.firstOrNull { it.id == selectedId }
+                if (sel != null && inHandle(sel, cx, cy)) {
+                    drag = Drag.RESIZE
+                    draft = RectF(sel.x, sel.y, sel.x + sel.w, sel.y + sel.h)
+                } else {
+                    val id = NativeBridge.nativeObjectAt(handle, cx, cy)
+                    if (id >= 0) {
+                        if (id != selectedId) selectObject(id)
+                        val obj = items.first { it.id == id }
+                        drag = Drag.MOVE
+                        grabDx = cx - obj.x
+                        grabDy = cy - obj.y
+                        draft = RectF(obj.x, obj.y, obj.x + obj.w, obj.y + obj.h)
+                    } else {
+                        clearSelection()
+                    }
+                }
+                invalidate()
+            }
+
+            MotionEvent.ACTION_MOVE -> {
+                val d = draft ?: return true
+                when (drag) {
+                    Drag.MOVE -> {
+                        val w = d.width()
+                        val h = d.height()
+                        val nx = cx - grabDx
+                        val ny = cy - grabDy
+                        d.set(nx, ny, nx + w, ny + h)
+                    }
+                    Drag.RESIZE -> d.set(
+                        d.left, d.top,
+                        maxOf(cx, d.left + minObject), maxOf(cy, d.top + minObject),
+                    )
+                    Drag.NONE -> {}
+                }
+                invalidate()
+            }
+
+            MotionEvent.ACTION_UP -> {
+                val d = draft
+                if (d != null && drag != Drag.NONE && selectedId >= 0) {
+                    NativeBridge.nativeSetObjectRect(
+                        handle, selectedId, d.left, d.top, d.width(), d.height(),
+                    )
+                    refresh()
+                }
+                drag = Drag.NONE
+                draft = null
+                invalidate()
+            }
+        }
+        return true
+    }
+
+    /** True if (cx,cy) in card coords is within the selected object's bottom-right handle. */
+    private fun inHandle(item: DrawItem, cx: Float, cy: Float): Boolean {
+        val hx = item.x + item.w
+        val hy = item.y + item.h
+        val s = handleHalfPx / scale
+        return cx in (hx - s)..(hx + s) && cy in (hy - s)..(hy + s)
     }
 }

@@ -37,11 +37,13 @@ parser, and writes it back. No new object creation yet. See
 
 *Enables: tweak a button's behavior on-device; immediate parse-error feedback.*
 
-### Phase 2 — Object authoring
+### Phase 2 — Object authoring *(in progress)*
 
 Create / delete / move / resize buttons and fields; a minimal tool palette; set name, title,
-style, and lock state. This is the larger half of "authoring" and reuses the render-list /
-host-command bridge that was designed to accommodate it without a rewrite.
+style, and lock state. Direct manipulation: tap to select, drag to move, drag a corner to
+resize; a property inspector for the rest. Reuses the render-list / host-command bridge that
+was designed to accommodate it without a rewrite. See
+[ADR-0005](adr/0005-object-authoring.md).
 
 *Enables: build a card from scratch on-device.*
 
@@ -70,3 +72,4 @@ Rust-native — see [ADR-0001](adr/0001-rust-native-hypertalk.md).
 - [ADR-0002 — JSON-string JNI bridge](adr/0002-json-string-jni-bridge.md)
 - [ADR-0003 — Player-first, JSON-authored stacks](adr/0003-player-first-json-authored-stacks.md)
 - [ADR-0004 — In-app HyperTalk script editor](adr/0004-in-app-script-editor.md)
+- [ADR-0005 — On-device object authoring](adr/0005-object-authoring.md)

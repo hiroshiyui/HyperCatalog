@@ -179,6 +179,98 @@ pub extern "system" fn Java_org_ghostsinthelab_app_hypercatalog_NativeBridge_nat
     java_string(&mut env, &Session::check_script(&src).unwrap_or_default())
 }
 
+/// Create a new "button" or "field" on the current card. Returns the new object id, or -1.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_org_ghostsinthelab_app_hypercatalog_NativeBridge_nativeAddObject(
+    mut env: JNIEnv,
+    _class: JClass,
+    handle: jlong,
+    kind: JString,
+) -> jint {
+    let kind = rust_string(&mut env, &kind);
+    let Some(s) = (unsafe { session(handle) }) else {
+        return -1;
+    };
+    s.add_object(&kind).map(|id| id as jint).unwrap_or(-1)
+}
+
+/// Delete an object by id. Returns true if one was removed.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_org_ghostsinthelab_app_hypercatalog_NativeBridge_nativeDeleteObject(
+    _env: JNIEnv,
+    _class: JClass,
+    handle: jlong,
+    object_id: jint,
+) -> jboolean {
+    let Some(s) = (unsafe { session(handle) }) else {
+        return JNI_FALSE;
+    };
+    if s.delete_object(object_id as u32) {
+        JNI_TRUE
+    } else {
+        JNI_FALSE
+    }
+}
+
+/// Move/resize an object by id (drag commit). Returns true if one was updated.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_org_ghostsinthelab_app_hypercatalog_NativeBridge_nativeSetObjectRect(
+    _env: JNIEnv,
+    _class: JClass,
+    handle: jlong,
+    object_id: jint,
+    x: jfloat,
+    y: jfloat,
+    w: jfloat,
+    h: jfloat,
+) -> jboolean {
+    let Some(s) = (unsafe { session(handle) }) else {
+        return JNI_FALSE;
+    };
+    if s.set_object_rect(object_id as u32, x, y, w, h) {
+        JNI_TRUE
+    } else {
+        JNI_FALSE
+    }
+}
+
+/// Read an object's editable properties as JSON. Empty string if the object doesn't exist.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_org_ghostsinthelab_app_hypercatalog_NativeBridge_nativeGetObjectProps(
+    mut env: JNIEnv,
+    _class: JClass,
+    handle: jlong,
+    object_id: jint,
+) -> jstring {
+    let Some(s) = (unsafe { session(handle) }) else {
+        return java_string(&mut env, "");
+    };
+    java_string(
+        &mut env,
+        &s.get_object_props(object_id as u32).unwrap_or_default(),
+    )
+}
+
+/// Apply a JSON property blob to an object. Returns true if the object was found.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_org_ghostsinthelab_app_hypercatalog_NativeBridge_nativeSetObjectProps(
+    mut env: JNIEnv,
+    _class: JClass,
+    handle: jlong,
+    object_id: jint,
+    props: JString,
+) -> jboolean {
+    let props = rust_string(&mut env, &props);
+    let Some(s) = (unsafe { session(handle) }) else {
+        return JNI_FALSE;
+    };
+    if s.set_object_props(object_id as u32, &props) {
+        JNI_TRUE
+    } else {
+        JNI_FALSE
+    }
+}
+
 /// Serialize the current stack to JSON (for saving).
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_org_ghostsinthelab_app_hypercatalog_NativeBridge_nativeToJson(

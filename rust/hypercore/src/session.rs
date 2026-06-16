@@ -6,8 +6,12 @@
 
 use serde::Serialize;
 
-use crate::model::Stack;
+use crate::model::{Button, ButtonStyle, Field, Rect, Stack};
 use crate::script::{HostCmd, Me, Runtime};
+
+/// Smallest width/height an object may be resized to (card units), so drag-resize can't
+/// produce a zero or negative rect.
+const MIN_OBJECT_SIZE: f32 = 12.0;
 
 pub struct Session {
     stack: Stack,
@@ -218,6 +222,213 @@ impl Session {
         crate::script::parse_script(src).err()
     }
 
+    // ---- object authoring (Phase 2) ----
+
+    /// Lowest id not used by any button or field on any layer of the stack.
+    fn next_object_id(&self) -> u32 {
+        let mut max = 0;
+        for c in &self.stack.cards {
+            for b in &c.buttons {
+                max = max.max(b.id);
+            }
+            for f in &c.fields {
+                max = max.max(f.id);
+            }
+        }
+        for bg in &self.stack.backgrounds {
+            for b in &bg.buttons {
+                max = max.max(b.id);
+            }
+            for f in &bg.fields {
+                max = max.max(f.id);
+            }
+        }
+        max + 1
+    }
+
+    /// Create a new `"button"` or `"field"` on the current card at a default position and
+    /// return its id, or None for an unknown kind. New objects always land on the card
+    /// layer (not the shared background).
+    pub fn add_object(&mut self, kind: &str) -> Option<u32> {
+        let id = self.next_object_id();
+        let card = &mut self.stack.cards[self.card_index];
+        match kind {
+            "button" => {
+                card.buttons.push(Button {
+                    id,
+                    name: format!("Button {id}"),
+                    rect: Rect {
+                        x: 20.0,
+                        y: 80.0,
+                        w: 120.0,
+                        h: 44.0,
+                    },
+                    title: "Button".to_string(),
+                    style: ButtonStyle::Rounded,
+                    visible: true,
+                    script: String::new(),
+                });
+                Some(id)
+            }
+            "field" => {
+                card.fields.push(Field {
+                    id,
+                    name: format!("Field {id}"),
+                    rect: Rect {
+                        x: 20.0,
+                        y: 80.0,
+                        w: 200.0,
+                        h: 36.0,
+                    },
+                    text: String::new(),
+                    locked: false,
+                    visible: true,
+                    script: String::new(),
+                });
+                Some(id)
+            }
+            _ => None,
+        }
+    }
+
+    /// Delete an object by id from the current card, or its background. Returns true if one
+    /// was removed.
+    pub fn delete_object(&mut self, id: u32) -> bool {
+        let bg_id = {
+            let card = &mut self.stack.cards[self.card_index];
+            let before = card.buttons.len() + card.fields.len();
+            card.buttons.retain(|b| b.id != id);
+            card.fields.retain(|f| f.id != id);
+            if card.buttons.len() + card.fields.len() != before {
+                return true;
+            }
+            card.background_id
+        };
+        if let Some(bg_id) = bg_id
+            && let Some(bg) = self.stack.backgrounds.iter_mut().find(|b| b.id == bg_id)
+        {
+            let before = bg.buttons.len() + bg.fields.len();
+            bg.buttons.retain(|b| b.id != id);
+            bg.fields.retain(|f| f.id != id);
+            return bg.buttons.len() + bg.fields.len() != before;
+        }
+        false
+    }
+
+    /// Move/resize an object by id (drag commit). Width/height are clamped to a minimum.
+    /// Searches card layer then background layer. Returns true if one was updated.
+    pub fn set_object_rect(&mut self, id: u32, x: f32, y: f32, w: f32, h: f32) -> bool {
+        let rect = Rect {
+            x,
+            y,
+            w: w.max(MIN_OBJECT_SIZE),
+            h: h.max(MIN_OBJECT_SIZE),
+        };
+        let bg_id = {
+            let card = &mut self.stack.cards[self.card_index];
+            if let Some(b) = card.buttons.iter_mut().find(|b| b.id == id) {
+                b.rect = rect;
+                return true;
+            }
+            if let Some(f) = card.fields.iter_mut().find(|f| f.id == id) {
+                f.rect = rect;
+                return true;
+            }
+            card.background_id
+        };
+        if let Some(bg_id) = bg_id
+            && let Some(bg) = self.stack.backgrounds.iter_mut().find(|b| b.id == bg_id)
+        {
+            if let Some(b) = bg.buttons.iter_mut().find(|b| b.id == id) {
+                b.rect = rect;
+                return true;
+            }
+            if let Some(f) = bg.fields.iter_mut().find(|f| f.id == id) {
+                f.rect = rect;
+                return true;
+            }
+        }
+        false
+    }
+
+    /// Read an object's editable properties as JSON, for a host inspector. Buttons report
+    /// `title`/`style`, fields report `text`/`locked`; both report `name` and geometry.
+    pub fn get_object_props(&self, id: u32) -> Option<String> {
+        if let Some(b) = self.find_button(id) {
+            return Some(
+                serde_json::json!({
+                    "id": b.id, "kind": "button", "name": b.name, "title": b.title,
+                    "style": format!("{:?}", b.style).to_lowercase(),
+                    "x": b.rect.x, "y": b.rect.y, "w": b.rect.w, "h": b.rect.h,
+                })
+                .to_string(),
+            );
+        }
+        if let Some(f) = self.find_field(id) {
+            return Some(
+                serde_json::json!({
+                    "id": f.id, "kind": "field", "name": f.name, "text": f.text,
+                    "locked": f.locked,
+                    "x": f.rect.x, "y": f.rect.y, "w": f.rect.w, "h": f.rect.h,
+                })
+                .to_string(),
+            );
+        }
+        None
+    }
+
+    /// Apply a JSON property blob to an object (any subset of keys; unknowns ignored).
+    /// Returns true if the object was found. Geometry is not set here — use
+    /// `set_object_rect`.
+    pub fn set_object_props(&mut self, id: u32, props_json: &str) -> bool {
+        let Ok(v) = serde_json::from_str::<serde_json::Value>(props_json) else {
+            return false;
+        };
+        let bg_id = {
+            let card = &mut self.stack.cards[self.card_index];
+            if let Some(b) = card.buttons.iter_mut().find(|b| b.id == id) {
+                apply_button_props(b, &v);
+                return true;
+            }
+            if let Some(f) = card.fields.iter_mut().find(|f| f.id == id) {
+                apply_field_props(f, &v);
+                return true;
+            }
+            card.background_id
+        };
+        if let Some(bg_id) = bg_id
+            && let Some(bg) = self.stack.backgrounds.iter_mut().find(|b| b.id == bg_id)
+        {
+            if let Some(b) = bg.buttons.iter_mut().find(|b| b.id == id) {
+                apply_button_props(b, &v);
+                return true;
+            }
+            if let Some(f) = bg.fields.iter_mut().find(|f| f.id == id) {
+                apply_field_props(f, &v);
+                return true;
+            }
+        }
+        false
+    }
+
+    fn find_button(&self, id: u32) -> Option<&Button> {
+        let card = &self.stack.cards[self.card_index];
+        card.buttons.iter().find(|b| b.id == id).or_else(|| {
+            card.background_id
+                .and_then(|i| self.stack.background(i))
+                .and_then(|bg| bg.buttons.iter().find(|b| b.id == id))
+        })
+    }
+
+    fn find_field(&self, id: u32) -> Option<&Field> {
+        let card = &self.stack.cards[self.card_index];
+        card.fields.iter().find(|f| f.id == id).or_else(|| {
+            card.background_id
+                .and_then(|i| self.stack.background(i))
+                .and_then(|bg| bg.fields.iter().find(|f| f.id == id))
+        })
+    }
+
     /// Fire the `openCard` handler for the current card (card then stack). Call after
     /// load and after navigation.
     pub fn open_current_card(&mut self) -> DispatchResult {
@@ -401,6 +612,38 @@ enum Hit {
     Button(u32),
     EditableField(u32),
     LockedField(u32),
+}
+
+fn apply_button_props(b: &mut Button, v: &serde_json::Value) {
+    if let Some(s) = v.get("name").and_then(|x| x.as_str()) {
+        b.name = s.to_string();
+    }
+    if let Some(s) = v.get("title").and_then(|x| x.as_str()) {
+        b.title = s.to_string();
+    }
+    if let Some(s) = v.get("style").and_then(|x| x.as_str()) {
+        b.style = parse_style(s);
+    }
+}
+
+fn apply_field_props(f: &mut Field, v: &serde_json::Value) {
+    if let Some(s) = v.get("name").and_then(|x| x.as_str()) {
+        f.name = s.to_string();
+    }
+    if let Some(s) = v.get("text").and_then(|x| x.as_str()) {
+        f.text = s.to_string();
+    }
+    if let Some(b) = v.get("locked").and_then(|x| x.as_bool()) {
+        f.locked = b;
+    }
+}
+
+fn parse_style(s: &str) -> ButtonStyle {
+    match s.to_ascii_lowercase().as_str() {
+        "rectangle" => ButtonStyle::Rectangle,
+        "transparent" => ButtonStyle::Transparent,
+        _ => ButtonStyle::Rounded,
+    }
 }
 
 fn field_hit(id: u32, locked: bool) -> Hit {

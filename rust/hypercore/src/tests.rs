@@ -159,6 +159,75 @@ fn check_script_flags_parse_errors() {
 }
 
 #[test]
+fn add_delete_object_round_trips() {
+    let mut s = Session::load_from_json(&sample_json()).unwrap();
+    let before = s.render_current_card().items.len();
+
+    let id = s.add_object("button").unwrap();
+    assert!(id > 21, "new id should exceed existing ids");
+    assert_eq!(s.render_current_card().items.len(), before + 1);
+    // The new button is tappable/selectable at its default position.
+    assert_eq!(s.object_at(30.0, 95.0), Some(id));
+
+    assert!(s.delete_object(id));
+    assert_eq!(s.render_current_card().items.len(), before);
+    assert!(!s.delete_object(id)); // already gone
+
+    assert!(s.add_object("widget").is_none()); // unknown kind
+}
+
+#[test]
+fn set_object_rect_moves_and_clamps() {
+    let mut s = Session::load_from_json(&sample_json()).unwrap();
+    // Move the "Inc" button (id 20) and shrink below the minimum.
+    assert!(s.set_object_rect(20, 200.0, 300.0, 1.0, 1.0));
+    let props: serde_json::Value =
+        serde_json::from_str(&s.get_object_props(20).unwrap()).unwrap();
+    assert_eq!(props["x"], 200.0);
+    assert_eq!(props["y"], 300.0);
+    assert!(props["w"].as_f64().unwrap() >= 12.0, "width clamped to minimum");
+    assert!(!s.set_object_rect(999, 0.0, 0.0, 50.0, 50.0));
+}
+
+#[test]
+fn get_and_set_object_props() {
+    let mut s = Session::load_from_json(&sample_json()).unwrap();
+
+    // Button: name + title + style.
+    let p: serde_json::Value = serde_json::from_str(&s.get_object_props(20).unwrap()).unwrap();
+    assert_eq!(p["kind"], "button");
+    assert!(s.set_object_props(20, r#"{"name":"Plus","title":"+1","style":"rectangle"}"#));
+    let p: serde_json::Value = serde_json::from_str(&s.get_object_props(20).unwrap()).unwrap();
+    assert_eq!(p["name"], "Plus");
+    assert_eq!(p["title"], "+1");
+    assert_eq!(p["style"], "rectangle");
+
+    // Field: text + locked.
+    assert!(s.set_object_props(11, r#"{"text":"hi","locked":true}"#));
+    let p: serde_json::Value = serde_json::from_str(&s.get_object_props(11).unwrap()).unwrap();
+    assert_eq!(p["text"], "hi");
+    assert_eq!(p["locked"], true);
+
+    assert!(s.get_object_props(999).is_none());
+    assert!(!s.set_object_props(999, "{}"));
+    assert!(!s.set_object_props(20, "not json"));
+}
+
+#[test]
+fn authored_objects_persist_through_json() {
+    let mut s = Session::load_from_json(&sample_json()).unwrap();
+    let id = s.add_object("field").unwrap();
+    s.set_object_rect(id, 10.0, 200.0, 80.0, 30.0);
+    s.set_object_props(id, r#"{"name":"note","text":"kept"}"#);
+
+    let s2 = Session::load_from_json(&s.to_json()).unwrap();
+    let p: serde_json::Value = serde_json::from_str(&s2.get_object_props(id).unwrap()).unwrap();
+    assert_eq!(p["name"], "note");
+    assert_eq!(p["text"], "kept");
+    assert_eq!(p["y"], 200.0);
+}
+
+#[test]
 fn answer_produces_host_effect() {
     let json = r#"{
       "name": "A", "cards": [
