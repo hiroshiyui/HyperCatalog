@@ -725,6 +725,131 @@ fn background_field_read_and_write() {
     assert_eq!(p["text"], "bye");
 }
 
+#[test]
+fn reads_button_properties() {
+    let mut s = Session::load_from_json(&sample_json()).unwrap();
+    // "Next" (id 21) has no title, so its label falls back to the name.
+    run_on_inc(
+        &mut s,
+        r#"put the title of button "Next" into field "counter""#,
+    );
+    assert_eq!(field_text(&s, 10), "Next");
+    run_on_inc(
+        &mut s,
+        r#"put the name of button "Next" into field "counter""#,
+    );
+    assert_eq!(field_text(&s, 10), "Next");
+    run_on_inc(
+        &mut s,
+        r#"put the id of button "Next" into field "counter""#,
+    );
+    assert_eq!(field_text(&s, 10), "21");
+    run_on_inc(
+        &mut s,
+        r#"put the textSize of button "Next" into field "counter""#,
+    );
+    assert_eq!(field_text(&s, 10), "16"); // default
+    run_on_inc(
+        &mut s,
+        r#"put the textStyle of button "Next" into field "counter""#,
+    );
+    assert_eq!(field_text(&s, 10), "plain"); // no styles set reads back as "plain"
+    run_on_inc(
+        &mut s,
+        r#"put the visible of button "Next" into field "counter""#,
+    );
+    assert_eq!(field_text(&s, 10), "true");
+    // Geometry properties resolve on buttons too (rect {x:10,y:150,w:80,h:40}).
+    run_on_inc(
+        &mut s,
+        r#"put the width of button "Next" into field "counter""#,
+    );
+    assert_eq!(field_text(&s, 10), "80");
+}
+
+#[test]
+fn writes_button_properties() {
+    let mut s = Session::load_from_json(&sample_json()).unwrap();
+    run_on_inc(&mut s, r#"set the title of button "Next" to "Go""#);
+    run_on_inc(&mut s, r#"set the textSize of button "Next" to 22"#);
+    run_on_inc(
+        &mut s,
+        r#"set the textStyle of button "Next" to "bold,italic""#,
+    );
+    run_on_inc(&mut s, r#"set the textFont of button "Next" to "serif""#);
+    run_on_inc(&mut s, r#"set the textAlign of button "Next" to "center""#);
+    let p: serde_json::Value = serde_json::from_str(&s.get_object_props(21).unwrap()).unwrap();
+    assert_eq!(p["title"], "Go");
+    assert_eq!(p["text_size"], 22.0);
+    assert_eq!(p["text_style"], "bold,italic");
+    assert_eq!(p["text_font"], "serif");
+    assert_eq!(p["text_align"], "center");
+
+    // Renaming by name works; verify by id since the old name no longer resolves.
+    run_on_inc(&mut s, r#"set the name of button "Next" to "Forward""#);
+    let p: serde_json::Value = serde_json::from_str(&s.get_object_props(21).unwrap()).unwrap();
+    assert_eq!(p["name"], "Forward");
+
+    // An unknown button property errors.
+    assert!(run_on_inc_err(&mut s, r#"set the bogus of button "Inc" to "1""#).is_some());
+}
+
+#[test]
+fn sets_single_edge_geometry() {
+    let mut s = Session::load_from_json(&sample_json()).unwrap();
+    // "input" field id 11 starts at rect {x:10,y:50,w:100,h:30}.
+    // top/left move the origin and keep the size.
+    run_on_inc(&mut s, r#"set the top of field "input" to "5""#);
+    run_on_inc(&mut s, r#"set the left of field "input" to "7""#);
+    let p: serde_json::Value = serde_json::from_str(&s.get_object_props(11).unwrap()).unwrap();
+    assert_eq!(p["y"], 5.0);
+    assert_eq!(p["x"], 7.0);
+    assert_eq!(p["w"], 100.0); // unchanged
+    assert_eq!(p["h"], 30.0);
+
+    // bottom/right keep the size by shifting the origin: y = bottom - h, x = right - w.
+    run_on_inc(&mut s, r#"set the bottom of field "input" to "100""#);
+    run_on_inc(&mut s, r#"set the right of field "input" to "90""#);
+    let p: serde_json::Value = serde_json::from_str(&s.get_object_props(11).unwrap()).unwrap();
+    assert_eq!(p["y"], 70.0); // 100 - 30
+    assert_eq!(p["x"], -10.0); // 90 - 100
+    assert_eq!(p["h"], 30.0);
+    assert_eq!(p["w"], 100.0);
+}
+
+#[test]
+fn unicode_comparison_operators() {
+    let mut s = Session::load_from_json(&sample_json()).unwrap();
+    run_on_inc(&mut s, "put (1 ≠ 2) into field \"counter\"");
+    assert_eq!(field_text(&s, 10), "true");
+    run_on_inc(&mut s, "put (2 ≤ 2) into field \"counter\"");
+    assert_eq!(field_text(&s, 10), "true");
+    run_on_inc(&mut s, "put (3 ≥ 4) into field \"counter\"");
+    assert_eq!(field_text(&s, 10), "false");
+}
+
+#[test]
+fn lexer_handles_comments_and_unterminated_strings() {
+    // Trailing and whole-line `--` comments are ignored.
+    let mut s = Session::load_from_json(&sample_json()).unwrap();
+    run_on_inc(
+        &mut s,
+        "put 7 into field \"counter\" -- trailing comment\n  -- whole-line comment",
+    );
+    assert_eq!(field_text(&s, 10), "7");
+
+    // An unterminated string literal is a lexer error, surfaced via check_script.
+    assert!(Session::check_script("on mouseUp\n  put \"oops into field x\nend mouseUp").is_some());
+}
+
+#[test]
+fn parses_handler_with_parameter_list() {
+    // Exercises the comma token and the parameter-list parse loop.
+    let script =
+        parse_script("on myMessage a, b\n  put a into field \"x\"\nend myMessage").unwrap();
+    assert_eq!(script.handlers[0].params, vec!["a", "b"]);
+}
+
 /// Direct unit tests for the string-centric `Value` coercions.
 mod value_unit {
     use crate::script::value::{Value, fmt_number};
@@ -760,6 +885,14 @@ mod value_unit {
         assert!(!Value::Number(0.0).as_bool());
         assert!(Value::from_text("TRUE").as_bool()); // case-insensitive
         assert!(!Value::from_text("nope").as_bool());
+    }
+
+    #[test]
+    fn display_matches_as_text() {
+        assert_eq!(format!("{}", Value::Number(5.0)), "5");
+        assert_eq!(format!("{}", Value::from_text("hi")), "hi");
+        assert_eq!(format!("{}", Value::Bool(true)), "true");
+        assert_eq!(format!("{}", Value::Empty), "");
     }
 
     #[test]
