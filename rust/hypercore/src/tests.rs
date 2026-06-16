@@ -118,11 +118,7 @@ fn object_at_returns_topmost_id() {
 #[test]
 fn get_and_set_object_script() {
     let mut s = Session::load_from_json(&sample_json()).unwrap();
-    assert!(
-        s.get_object_script(20)
-            .unwrap()
-            .contains("add 1 to field")
-    );
+    assert!(s.get_object_script(20).unwrap().contains("add 1 to field"));
     assert!(s.get_object_script(999).is_none());
 
     // Rewrite "Inc" to subtract; lazy per-dispatch parsing means the next tap runs it.
@@ -181,11 +177,13 @@ fn set_object_rect_moves_and_clamps() {
     let mut s = Session::load_from_json(&sample_json()).unwrap();
     // Move the "Inc" button (id 20) and shrink below the minimum.
     assert!(s.set_object_rect(20, 200.0, 300.0, 1.0, 1.0));
-    let props: serde_json::Value =
-        serde_json::from_str(&s.get_object_props(20).unwrap()).unwrap();
+    let props: serde_json::Value = serde_json::from_str(&s.get_object_props(20).unwrap()).unwrap();
     assert_eq!(props["x"], 200.0);
     assert_eq!(props["y"], 300.0);
-    assert!(props["w"].as_f64().unwrap() >= 12.0, "width clamped to minimum");
+    assert!(
+        props["w"].as_f64().unwrap() >= 12.0,
+        "width clamped to minimum"
+    );
     assert!(!s.set_object_rect(999, 0.0, 0.0, 50.0, 50.0));
 }
 
@@ -244,21 +242,46 @@ fn field_text(s: &Session, id: u32) -> String {
         .text
 }
 
+/// Like `run_on_inc`, but for scripts expected to error; returns the dispatch error.
+fn run_on_inc_err(s: &mut Session, body: &str) -> Option<String> {
+    let src = format!("on mouseUp\n  {body}\nend mouseUp");
+    assert!(s.set_object_script(20, &src));
+    s.dispatch_touch(20.0, 120.0, "up").error
+}
+
 #[test]
 fn reads_geometry_properties() {
     let mut s = Session::load_from_json(&sample_json()).unwrap();
     // "input" field id 11 has rect {x:10,y:50,w:100,h:30}; results go into "counter" (id 10).
-    run_on_inc(&mut s, r#"put the width of field "input" into field "counter""#);
+    run_on_inc(
+        &mut s,
+        r#"put the width of field "input" into field "counter""#,
+    );
     assert_eq!(field_text(&s, 10), "100");
-    run_on_inc(&mut s, r#"put the height of field "input" into field "counter""#);
+    run_on_inc(
+        &mut s,
+        r#"put the height of field "input" into field "counter""#,
+    );
     assert_eq!(field_text(&s, 10), "30");
-    run_on_inc(&mut s, r#"put the loc of field "input" into field "counter""#);
+    run_on_inc(
+        &mut s,
+        r#"put the loc of field "input" into field "counter""#,
+    );
     assert_eq!(field_text(&s, 10), "60,65"); // center: (10+50, 50+15)
-    run_on_inc(&mut s, r#"put the rect of field "input" into field "counter""#);
+    run_on_inc(
+        &mut s,
+        r#"put the rect of field "input" into field "counter""#,
+    );
     assert_eq!(field_text(&s, 10), "10,50,110,80");
-    run_on_inc(&mut s, r#"put the right of field "input" into field "counter""#);
+    run_on_inc(
+        &mut s,
+        r#"put the right of field "input" into field "counter""#,
+    );
     assert_eq!(field_text(&s, 10), "110");
-    run_on_inc(&mut s, r#"put the id of field "input" into field "counter""#);
+    run_on_inc(
+        &mut s,
+        r#"put the id of field "input" into field "counter""#,
+    );
     assert_eq!(field_text(&s, 10), "11");
 }
 
@@ -268,24 +291,21 @@ fn writes_geometry_properties() {
 
     // loc re-centers, keeping size (100x30): center (200,200) -> x=150, y=185.
     run_on_inc(&mut s, r#"set the loc of field "input" to "200,200""#);
-    let p: serde_json::Value =
-        serde_json::from_str(&s.get_object_props(11).unwrap()).unwrap();
+    let p: serde_json::Value = serde_json::from_str(&s.get_object_props(11).unwrap()).unwrap();
     assert_eq!(p["x"], 150.0);
     assert_eq!(p["y"], 185.0);
     assert_eq!(p["w"], 100.0); // unchanged
 
     // rect sets all four edges.
     run_on_inc(&mut s, r#"set the rect of field "input" to "0,0,40,60""#);
-    let p: serde_json::Value =
-        serde_json::from_str(&s.get_object_props(11).unwrap()).unwrap();
+    let p: serde_json::Value = serde_json::from_str(&s.get_object_props(11).unwrap()).unwrap();
     assert_eq!(p["x"], 0.0);
     assert_eq!(p["w"], 40.0);
     assert_eq!(p["h"], 60.0);
 
     // width keeps the top-left corner; a sub-minimum value is clamped.
     run_on_inc(&mut s, r#"set the width of field "input" to "0""#);
-    let p: serde_json::Value =
-        serde_json::from_str(&s.get_object_props(11).unwrap()).unwrap();
+    let p: serde_json::Value = serde_json::from_str(&s.get_object_props(11).unwrap()).unwrap();
     assert!(p["w"].as_f64().unwrap() >= 1.0, "width clamped to minimum");
     assert_eq!(p["x"], 0.0);
 }
@@ -295,19 +315,27 @@ fn text_style_properties_default_and_set() {
     let mut s = Session::load_from_json(&sample_json()).unwrap();
 
     // Defaults: size 16, style reads back as "plain".
-    run_on_inc(&mut s, r#"put the textSize of field "input" into field "counter""#);
+    run_on_inc(
+        &mut s,
+        r#"put the textSize of field "input" into field "counter""#,
+    );
     assert_eq!(field_text(&s, 10), "16");
-    run_on_inc(&mut s, r#"put the textStyle of field "input" into field "counter""#);
+    run_on_inc(
+        &mut s,
+        r#"put the textStyle of field "input" into field "counter""#,
+    );
     assert_eq!(field_text(&s, 10), "plain");
 
     // Set style, size, font, align via script.
-    run_on_inc(&mut s, r#"set the textStyle of field "input" to "bold,italic""#);
+    run_on_inc(
+        &mut s,
+        r#"set the textStyle of field "input" to "bold,italic""#,
+    );
     run_on_inc(&mut s, r#"set the textSize of field "input" to 24"#);
     run_on_inc(&mut s, r#"set the textFont of field "input" to "serif""#);
     run_on_inc(&mut s, r#"set the textAlign of field "input" to "center""#);
 
-    let p: serde_json::Value =
-        serde_json::from_str(&s.get_object_props(11).unwrap()).unwrap();
+    let p: serde_json::Value = serde_json::from_str(&s.get_object_props(11).unwrap()).unwrap();
     assert_eq!(p["text_style"], "bold,italic");
     assert_eq!(p["text_size"], 24.0);
     assert_eq!(p["text_font"], "serif");
@@ -330,8 +358,7 @@ fn text_attrs_default_in_render_and_round_trip() {
     // Authoring props round-trip through JSON save/load.
     assert!(s.set_object_props(11, r#"{"text_style":"underline","text_size":20}"#));
     let s2 = Session::load_from_json(&s.to_json()).unwrap();
-    let p: serde_json::Value =
-        serde_json::from_str(&s2.get_object_props(11).unwrap()).unwrap();
+    let p: serde_json::Value = serde_json::from_str(&s2.get_object_props(11).unwrap()).unwrap();
     assert_eq!(p["text_style"], "underline");
     assert_eq!(p["text_size"], 20.0);
 }
@@ -343,6 +370,67 @@ fn unknown_property_still_errors() {
     assert!(s.set_object_script(20, src));
     let r = s.dispatch_touch(20.0, 120.0, "up");
     assert!(r.error.is_some(), "unknown property should error");
+}
+
+#[test]
+fn out_of_range_selector_errors_without_panic() {
+    // Regression: an out-of-range object number must yield Err, not an index panic that
+    // would unwind across the FFI boundary (UB). See find_index upper-bound check.
+    let mut s = Session::load_from_json(&sample_json()).unwrap();
+    let src = "on mouseUp\n  put field 99 into field \"counter\"\nend mouseUp";
+    assert!(s.set_object_script(20, src));
+    let r = s.dispatch_touch(20.0, 120.0, "up");
+    assert!(r.error.is_some(), "out-of-range field number should error");
+
+    let src = "on mouseUp\n  put the name of button 99 into field \"counter\"\nend mouseUp";
+    assert!(s.set_object_script(20, src));
+    let r = s.dispatch_touch(20.0, 120.0, "up");
+    assert!(r.error.is_some(), "out-of-range button number should error");
+}
+
+#[test]
+fn runaway_repeat_is_bounded() {
+    // A huge loop must error (bounded budget) rather than hang the synchronous dispatch.
+    let mut s = Session::load_from_json(&sample_json()).unwrap();
+    let src =
+        "on mouseUp\n  repeat with i = 1 to 999999999\n    put i into x\n  end repeat\nend mouseUp";
+    assert!(s.set_object_script(20, src));
+    let r = s.dispatch_touch(20.0, 120.0, "up");
+    assert!(
+        r.error.is_some(),
+        "runaway repeat should be bounded with an error"
+    );
+
+    // A normal-sized loop still completes fine.
+    let src = "on mouseUp\n  put 0 into x\n  repeat with i = 1 to 5\n    add i to x\n  end repeat\n  put x into field \"counter\"\nend mouseUp";
+    assert!(s.set_object_script(20, src));
+    let r = s.dispatch_touch(20.0, 120.0, "up");
+    assert!(r.error.is_none(), "small loop errored: {:?}", r.error);
+    assert_eq!(field_text(&s, 10), "15"); // 1+2+3+4+5
+}
+
+#[test]
+fn me_resolves_for_background_object() {
+    // Regression: `me` must resolve for a background-layer object, not only card objects.
+    let json = r#"{
+      "name": "A",
+      "backgrounds": [
+        { "id": 1, "name": "bg", "buttons": [
+          { "id": 99, "name": "tag", "rect": {"x":0,"y":0,"w":50,"h":50},
+            "script": "on mouseUp\n  set the title of me to \"hit\"\nend mouseUp" }
+        ] }
+      ],
+      "cards": [ { "id": 1, "name": "One", "background_id": 1 } ]
+    }"#;
+    let mut s = Session::load_from_json(json).unwrap();
+    let r = s.dispatch_touch(10.0, 10.0, "up");
+    assert!(
+        r.error.is_none(),
+        "me on a background button errored: {:?}",
+        r.error
+    );
+    let p: serde_json::Value = serde_json::from_str(&s.get_object_props(99).unwrap()).unwrap();
+    assert_eq!(p["title"], "hit");
 }
 
 #[test]
@@ -400,4 +488,288 @@ fn put_into_field_and_concat() {
     s.dispatch_touch(10.0, 70.0, "up");
     let render = s.render_current_card();
     assert_eq!(render.items.iter().find(|d| d.id == 5).unwrap().text, "ab");
+}
+
+#[test]
+fn arithmetic_and_comparison_operators() {
+    let mut s = Session::load_from_json(&sample_json()).unwrap();
+    // Each case overwrites the locked "counter" field (id 10) with an expression result.
+    let cases = [
+        (r#"put 2 * 3 into field "counter""#, "6"),
+        (r#"put 7 / 2 into field "counter""#, "3.5"),
+        (r#"put 10 / 2 into field "counter""#, "5"), // integral result drops ".0"
+        (r#"put 7 mod 3 into field "counter""#, "1"),
+        (r#"put 1 + 2 * 3 into field "counter""#, "7"), // precedence: mul before add
+        (r#"put -5 into field "counter""#, "-5"),       // unary minus
+        (r#"put (2 < 3) into field "counter""#, "true"),
+        (r#"put (3 <= 3) into field "counter""#, "true"),
+        (r#"put (4 > 9) into field "counter""#, "false"),
+        (r#"put (5 >= 6) into field "counter""#, "false"),
+        (r#"put (1 is 1) into field "counter""#, "true"),
+        (r#"put (1 is not 2) into field "counter""#, "true"),
+        (r#"put (1 <> 2) into field "counter""#, "true"),
+        (r#"put ("ABC" = "abc") into field "counter""#, "true"), // case-insensitive text eq
+        (r#"put ("b" > "a") into field "counter""#, "true"),     // lexical text compare
+        (r#"put (10 > 9) into field "counter""#, "true"),        // numeric, not lexical
+        (r#"put (true and false) into field "counter""#, "false"),
+        (r#"put (true or false) into field "counter""#, "true"),
+        (r#"put (not false) into field "counter""#, "true"),
+        (r#"put ("a" & "b") into field "counter""#, "ab"), // concat
+        (r#"put ("a" && "b") into field "counter""#, "a b"), // concat-with-space
+    ];
+    for (body, expect) in cases {
+        run_on_inc(&mut s, body);
+        assert_eq!(field_text(&s, 10), expect, "for script body `{body}`");
+    }
+}
+
+#[test]
+fn builtin_functions() {
+    let mut s = Session::load_from_json(&sample_json()).unwrap();
+    run_on_inc(&mut s, r#"put length("hello") into field "counter""#);
+    assert_eq!(field_text(&s, 10), "5");
+    run_on_inc(&mut s, r#"put trunc(3.9) into field "counter""#);
+    assert_eq!(field_text(&s, 10), "3");
+    run_on_inc(&mut s, r#"put the number of cards into field "counter""#);
+    assert_eq!(field_text(&s, 10), "2");
+    run_on_inc(&mut s, r#"put the number of fields into field "counter""#);
+    assert_eq!(field_text(&s, 10), "2");
+    run_on_inc(&mut s, r#"put the number of buttons into field "counter""#);
+    assert_eq!(field_text(&s, 10), "2");
+    run_on_inc(
+        &mut s,
+        r#"put the number of backgrounds into field "counter""#,
+    );
+    assert_eq!(field_text(&s, 10), "1");
+
+    // The PRNG is deterministic and seeded; random(1) is always 1, random(n) stays in 1..=n.
+    run_on_inc(&mut s, r#"put random(1) into field "counter""#);
+    assert_eq!(field_text(&s, 10), "1");
+    run_on_inc(&mut s, r#"put random(6) into field "counter""#);
+    let n: i64 = field_text(&s, 10).parse().unwrap();
+    assert!((1..=6).contains(&n), "random(6) out of range: {n}");
+
+    // Unknown function is an error.
+    assert!(run_on_inc_err(&mut s, r#"put bogus(1) into field "counter""#).is_some());
+}
+
+#[test]
+fn string_constants() {
+    let mut s = Session::load_from_json(&sample_json()).unwrap();
+    let cases = [
+        (r#"put space into field "counter""#, " "),
+        (r#"put quote into field "counter""#, "\""),
+        (r#"put comma into field "counter""#, ","),
+        (r#"put colon into field "counter""#, ":"),
+        ("put return into field \"counter\"", "\n"),
+        ("put tab into field \"counter\"", "\t"),
+        (r#"put empty into field "counter""#, ""),
+    ];
+    for (body, expect) in cases {
+        run_on_inc(&mut s, body);
+        assert_eq!(field_text(&s, 10), expect, "for script body `{body}`");
+    }
+}
+
+#[test]
+fn get_sets_it_then_put_reads_it() {
+    let mut s = Session::load_from_json(&sample_json()).unwrap();
+    run_on_inc(&mut s, "get 5 + 3\n  put it into field \"counter\"");
+    assert_eq!(field_text(&s, 10), "8");
+}
+
+#[test]
+fn multiply_and_divide_statements() {
+    let mut s = Session::load_from_json(&sample_json()).unwrap();
+    s.set_field_text(10, "5");
+    run_on_inc(&mut s, r#"multiply field "counter" by 3"#);
+    assert_eq!(field_text(&s, 10), "15");
+    run_on_inc(&mut s, r#"divide field "counter" by 5"#);
+    assert_eq!(field_text(&s, 10), "3");
+}
+
+#[test]
+fn arithmetic_on_non_number_container_errors() {
+    let mut s = Session::load_from_json(&sample_json()).unwrap();
+    s.set_field_text(10, "abc");
+    assert!(run_on_inc_err(&mut s, r#"add 1 to field "counter""#).is_some());
+}
+
+#[test]
+fn repeat_for_times_and_exit_repeat() {
+    let mut s = Session::load_from_json(&sample_json()).unwrap();
+    // `repeat for N times` form.
+    run_on_inc(
+        &mut s,
+        "put 0 into field \"counter\"\n  repeat for 3 times\n    add 1 to field \"counter\"\n  end repeat",
+    );
+    assert_eq!(field_text(&s, 10), "3");
+
+    // `exit repeat` breaks out of a counting loop early.
+    run_on_inc(
+        &mut s,
+        "put 0 into field \"counter\"\n  repeat with i = 1 to 10\n    add 1 to field \"counter\"\n    if i is 3 then exit repeat\n  end repeat",
+    );
+    assert_eq!(field_text(&s, 10), "3");
+}
+
+#[test]
+fn exit_handler_stops_remaining_statements() {
+    let mut s = Session::load_from_json(&sample_json()).unwrap();
+    run_on_inc(
+        &mut s,
+        "put 1 into field \"counter\"\n  exit mouseUp\n  put 99 into field \"counter\"",
+    );
+    assert_eq!(field_text(&s, 10), "1");
+}
+
+#[test]
+fn single_line_if_else() {
+    let mut s = Session::load_from_json(&sample_json()).unwrap();
+    run_on_inc(
+        &mut s,
+        r#"if 1 > 2 then put "a" into field "counter" else put "b" into field "counter""#,
+    );
+    assert_eq!(field_text(&s, 10), "b");
+}
+
+#[test]
+fn field_selector_by_number() {
+    let mut s = Session::load_from_json(&sample_json()).unwrap();
+    s.set_field_text(11, "hi"); // "input" is the 2nd field on the card
+    run_on_inc(&mut s, r#"put field 2 into field "counter""#);
+    assert_eq!(field_text(&s, 10), "hi");
+}
+
+/// Run `body` on the "Inc" button of a fresh stack and return the resulting card index.
+fn nav_index(body: &str) -> usize {
+    let mut s = Session::load_from_json(&sample_json()).unwrap();
+    run_on_inc(&mut s, body);
+    s.card_index()
+}
+
+#[test]
+fn go_navigation_variants() {
+    assert_eq!(nav_index("go last card"), 1);
+    assert_eq!(nav_index("go first card"), 0);
+    assert_eq!(nav_index("go prev card"), 1); // wraps from card 1 back to the last
+    assert_eq!(nav_index("go card 2"), 1);
+    assert_eq!(nav_index("go card 3"), 0); // (3-1) mod 2 == 0, wraps around
+    assert_eq!(nav_index(r#"go card "Second""#), 1);
+
+    // An unknown card name errors rather than navigating.
+    let mut s = Session::load_from_json(&sample_json()).unwrap();
+    assert!(run_on_inc_err(&mut s, r#"go card "Nope""#).is_some());
+    assert_eq!(s.card_index(), 0);
+}
+
+#[test]
+fn card_and_stack_properties() {
+    let mut s = Session::load_from_json(&sample_json()).unwrap();
+    run_on_inc(&mut s, r#"put the name of this card into field "counter""#);
+    assert_eq!(field_text(&s, 10), "First");
+    run_on_inc(&mut s, r#"put the name of stack into field "counter""#);
+    assert_eq!(field_text(&s, 10), "Test");
+
+    // Rename the card and the stack, then read them back.
+    run_on_inc(&mut s, r#"set the name of this card to "Renamed""#);
+    run_on_inc(&mut s, r#"put the name of this card into field "counter""#);
+    assert_eq!(field_text(&s, 10), "Renamed");
+    run_on_inc(&mut s, r#"set the name of stack to "NewStack""#);
+    run_on_inc(&mut s, r#"put the name of stack into field "counter""#);
+    assert_eq!(field_text(&s, 10), "NewStack");
+}
+
+#[test]
+fn unknown_card_and_stack_property_errors() {
+    let mut s = Session::load_from_json(&sample_json()).unwrap();
+    assert!(run_on_inc_err(&mut s, r#"set the bogus of this card to "1""#).is_some());
+    assert!(run_on_inc_err(&mut s, r#"set the bogus of stack to "1""#).is_some());
+}
+
+#[test]
+fn me_resolves_for_card_field() {
+    // The locked "counter" field runs its mouseUp on tap; `me` must resolve to that field.
+    let mut s = Session::load_from_json(&sample_json()).unwrap();
+    assert!(s.set_object_script(10, "on mouseUp\n  set the text of me to \"F\"\nend mouseUp"));
+    let r = s.dispatch_touch(20.0, 25.0, "up"); // inside counter's rect
+    assert!(r.error.is_none(), "error: {:?}", r.error);
+    assert_eq!(field_text(&s, 10), "F");
+}
+
+#[test]
+fn background_field_read_and_write() {
+    let json = r#"{
+      "name": "A",
+      "backgrounds": [
+        { "id": 1, "name": "bg", "fields": [
+          { "id": 50, "name": "label", "rect": {"x":0,"y":0,"w":50,"h":20}, "text": "hi" }
+        ] }
+      ],
+      "cards": [
+        { "id": 1, "name": "One", "background_id": 1,
+          "fields": [ { "id": 51, "name": "out", "rect": {"x":0,"y":60,"w":50,"h":20}, "locked": true } ],
+          "buttons": [
+            { "id": 60, "name": "B", "rect": {"x":0,"y":100,"w":50,"h":20},
+              "script": "on mouseUp\n  put bg field \"label\" into field \"out\"\n  set the text of bg field \"label\" to \"bye\"\nend mouseUp" }
+          ] }
+      ]
+    }"#;
+    let mut s = Session::load_from_json(json).unwrap();
+    let r = s.dispatch_touch(10.0, 110.0, "up");
+    assert!(r.error.is_none(), "error: {:?}", r.error);
+    // The card field copied the background field's text...
+    assert_eq!(field_text(&s, 51), "hi");
+    // ...and the background field itself was updated by `set`.
+    let p: serde_json::Value = serde_json::from_str(&s.get_object_props(50).unwrap()).unwrap();
+    assert_eq!(p["text"], "bye");
+}
+
+/// Direct unit tests for the string-centric `Value` coercions.
+mod value_unit {
+    use crate::script::value::{Value, fmt_number};
+
+    #[test]
+    fn fmt_number_matches_hypertalk() {
+        assert_eq!(fmt_number(0.0), "0");
+        assert_eq!(fmt_number(42.0), "42");
+        assert_eq!(fmt_number(-7.0), "-7");
+        assert_eq!(fmt_number(3.5), "3.5");
+        assert_eq!(fmt_number(-0.25), "-0.25");
+        // Past the integral-formatting threshold, fall back to the float rendering.
+        assert_eq!(fmt_number(1e16), "10000000000000000");
+        assert_eq!(fmt_number(f64::INFINITY), "inf");
+        assert_eq!(fmt_number(f64::NAN), "NaN");
+    }
+
+    #[test]
+    fn as_number_coerces_string_centric() {
+        assert_eq!(Value::Number(3.0).as_number(), Some(3.0));
+        assert_eq!(Value::Empty.as_number(), Some(0.0));
+        assert_eq!(Value::from_text("  42  ").as_number(), Some(42.0)); // trimmed
+        assert_eq!(Value::from_text("").as_number(), Some(0.0));
+        assert_eq!(Value::from_text("abc").as_number(), None);
+        assert_eq!(Value::Bool(true).as_number(), None);
+    }
+
+    #[test]
+    fn as_bool_coerces_string_centric() {
+        assert!(Value::Bool(true).as_bool());
+        assert!(!Value::Empty.as_bool());
+        assert!(Value::Number(2.0).as_bool());
+        assert!(!Value::Number(0.0).as_bool());
+        assert!(Value::from_text("TRUE").as_bool()); // case-insensitive
+        assert!(!Value::from_text("nope").as_bool());
+    }
+
+    #[test]
+    fn as_text_and_is_empty() {
+        assert_eq!(Value::Number(5.0).as_text(), "5");
+        assert_eq!(Value::Bool(false).as_text(), "false");
+        assert_eq!(Value::Empty.as_text(), "");
+        assert!(Value::Empty.is_empty());
+        assert!(Value::from_text("").is_empty());
+        assert!(!Value::from_text("x").is_empty());
+        assert!(!Value::Number(0.0).is_empty()); // a number is never "empty"
+    }
 }

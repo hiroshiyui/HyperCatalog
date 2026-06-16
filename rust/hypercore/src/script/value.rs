@@ -68,9 +68,8 @@ impl fmt::Display for Value {
 /// Format a number without a trailing ".0" for integral values, like HyperTalk.
 pub fn fmt_number(n: f64) -> String {
     if n.is_finite() && n.fract() == 0.0 && n.abs() < 1e15 {
-        format!("{}", n as i64)
+        (n as i64).to_string()
     } else {
-        let s = format!("{}", n);
-        s
+        n.to_string()
     }
 }

@@ -64,12 +64,19 @@ enum Loc {
     BgObj(usize, usize),
 }
 
+/// Upper bound on total loop iterations per handler run. A runaway/typo loop (e.g.
+/// `repeat with i = 1 to 1000000000`) would otherwise block the host UI thread, since
+/// scripts run synchronously on a tap. Covers all (incl. nested) repeats in one dispatch.
+const MAX_LOOP_ITERATIONS: u64 = 1_000_000;
+
 pub struct Runtime<'s> {
     pub stack: &'s mut Stack,
     pub card_index: usize,
     pub host: Vec<HostCmd>,
     /// Simple deterministic PRNG state for `random()` (we avoid OS randomness).
     rng: u64,
+    /// Remaining loop iterations for this run (reset each `Runtime::new`).
+    loop_budget: u64,
 }
 
 impl<'s> Runtime<'s> {
@@ -79,7 +86,19 @@ impl<'s> Runtime<'s> {
             card_index,
             host: Vec::new(),
             rng: 0x2545_F491_4F6C_DD1D,
+            loop_budget: MAX_LOOP_ITERATIONS,
         }
+    }
+
+    /// Consume one unit of the loop budget; errors if a run exhausts it.
+    fn tick_loop(&mut self) -> Result<(), String> {
+        if self.loop_budget == 0 {
+            return Err(format!(
+                "repeat exceeded the maximum of {MAX_LOOP_ITERATIONS} iterations"
+            ));
+        }
+        self.loop_budget -= 1;
+        Ok(())
     }
 
     /// Run the named message handler found in `src` (if any), with `me` as the owner.
@@ -192,6 +211,7 @@ impl<'s> Runtime<'s> {
                 let count = self.eval(n, env, me)?.as_number().unwrap_or(0.0);
                 let count = count.max(0.0) as i64;
                 for _ in 0..count {
+                    self.tick_loop()?;
                     match self.exec_stmts(body, env, me)? {
                         Flow::ExitRepeat => break,
                         Flow::ExitHandler => return Ok(Flow::ExitHandler),
@@ -204,6 +224,7 @@ impl<'s> Runtime<'s> {
                 let end = self.eval(to, env, me)?.as_number().unwrap_or(0.0) as i64;
                 let mut i = start;
                 while i <= end {
+                    self.tick_loop()?;
                     env.vars.insert(var.clone(), Value::Number(i as f64));
                     match self.exec_stmts(body, env, me)? {
                         Flow::ExitRepeat => break,
@@ -533,18 +554,13 @@ impl<'s> Runtime<'s> {
     }
 
     /// Resolve an `ObjectRef` (possibly `me`) into a concrete object descriptor we can
-    /// locate. `me` resolves to a same-layer reference by id.
+    /// locate. `me` resolves by 1-based position within whichever layer it lives on, so it
+    /// works for both card and background objects and is immune to name collisions.
     fn resolve_object(&self, target: &ObjectRef, me: Me) -> ResolvedObj {
         match target {
             ObjectRef::Me => match me {
-                Me::Button(id) => ResolvedObj::Button(ButtonRef {
-                    layer: Layer::Card,
-                    selector: Selector::ByName(Expr::Var(self.button_name(id))),
-                }),
-                Me::Field(id) => ResolvedObj::Field(FieldRef {
-                    layer: Layer::Card,
-                    selector: Selector::ByName(Expr::Str(self.field_name(id))),
-                }),
+                Me::Button(id) => ResolvedObj::Button(self.me_button_ref(id)),
+                Me::Field(id) => ResolvedObj::Field(self.me_field_ref(id)),
                 Me::Card | Me::Background(_) => ResolvedObj::Card,
                 Me::Stack => ResolvedObj::Stack,
             },
@@ -555,22 +571,31 @@ impl<'s> Runtime<'s> {
         }
     }
 
-    fn button_name(&self, id: u32) -> String {
-        self.stack.cards[self.card_index]
-            .buttons
-            .iter()
-            .find(|b| b.id == id)
-            .map(|b| b.name.clone())
-            .unwrap_or_default()
+    fn me_button_ref(&self, id: u32) -> ButtonRef {
+        let card = &self.stack.cards[self.card_index];
+        if let Some(pos) = card.buttons.iter().position(|b| b.id == id) {
+            return button_ref_by_number(Layer::Card, pos);
+        }
+        if let Some(bg) = card.background_id.and_then(|i| self.stack.background(i))
+            && let Some(pos) = bg.buttons.iter().position(|b| b.id == id)
+        {
+            return button_ref_by_number(Layer::Background, pos);
+        }
+        // `me` should always be a live object; if not, an out-of-range ref errors cleanly.
+        button_ref_by_number(Layer::Card, usize::MAX)
     }
 
-    fn field_name(&self, id: u32) -> String {
-        self.stack.cards[self.card_index]
-            .fields
-            .iter()
-            .find(|f| f.id == id)
-            .map(|f| f.name.clone())
-            .unwrap_or_default()
+    fn me_field_ref(&self, id: u32) -> FieldRef {
+        let card = &self.stack.cards[self.card_index];
+        if let Some(pos) = card.fields.iter().position(|f| f.id == id) {
+            return field_ref_by_number(Layer::Card, pos);
+        }
+        if let Some(bg) = card.background_id.and_then(|i| self.stack.background(i))
+            && let Some(pos) = bg.fields.iter().position(|f| f.id == id)
+        {
+            return field_ref_by_number(Layer::Background, pos);
+        }
+        field_ref_by_number(Layer::Card, usize::MAX)
     }
 
     // ---- expressions ----
@@ -668,6 +693,22 @@ impl<'s> Runtime<'s> {
     }
 }
 
+/// A button reference selecting the (0-based) `pos`-th button of `layer`, by HyperTalk's
+/// 1-based number. `pos as f64 + 1.0` (not `pos + 1`) avoids overflow on the sentinel.
+fn button_ref_by_number(layer: Layer, pos: usize) -> ButtonRef {
+    ButtonRef {
+        layer,
+        selector: Selector::ByNumber(Expr::Number(pos as f64 + 1.0)),
+    }
+}
+
+fn field_ref_by_number(layer: Layer, pos: usize) -> FieldRef {
+    FieldRef {
+        layer,
+        selector: Selector::ByNumber(Expr::Number(pos as f64 + 1.0)),
+    }
+}
+
 /// A resolved object target, ready to be located.
 enum ResolvedObj {
     Field(FieldRef),
@@ -687,7 +728,13 @@ fn find_index<'a>(
         if n < 1 {
             return Err(format!("object index out of range: {n}"));
         }
-        Ok((n - 1) as usize)
+        let idx = (n - 1) as usize;
+        // Upper-bound check: without it an out-of-range index would panic when the caller
+        // indexes the slice, and a panic across the `extern "system"` FFI is UB.
+        if idx >= names.count() {
+            return Err(format!("object number out of range: {n}"));
+        }
+        Ok(idx)
     } else {
         let want = v.as_text();
         names
