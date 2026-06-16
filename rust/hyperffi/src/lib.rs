@@ -8,12 +8,9 @@
 #[cfg(target_os = "android")]
 mod android;
 
-// --- UniFFI toolchain spike (ADR-0012) ---
-// Minimal proc-macro export to validate that UniFFI builds under this toolchain before the
-// real bridge migration. Coexists with the hand-written JNI during the staged port.
-uniffi::setup_scaffolding!();
+// --- UniFFI typed bridge (ADR-0012) ---
+// Generates the typed Kotlin bridge from `bridge.rs`; coexists with the hand-written JNI during
+// the staged port (the read path is typed; dispatch/authoring follow in later stages).
+mod bridge;
 
-#[uniffi::export]
-fn hc_ping() -> String {
-    "pong".to_string()
-}
+uniffi::setup_scaffolding!();

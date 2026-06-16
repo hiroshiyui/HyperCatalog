@@ -154,6 +154,9 @@ val uniffiBindgen by tasks.registering(UniffiBindgenTask::class) {
     rustWorkingDir.set(rustDir)
     // NB: do not set `outputDir` here — AGP's addGeneratedSourceDirectory owns its location.
     onlyIf { file("$rustDir/Cargo.toml").exists() }
+    // The task has no declared Rust inputs, so always regenerate — cargo is incremental, the
+    // host build + bindgen are cheap, and this keeps the bindings in sync with the source.
+    outputs.upToDateWhen { false }
 }
 
 // Wire the generated bindings into each variant's Kotlin sources (AGP Variant API); this also

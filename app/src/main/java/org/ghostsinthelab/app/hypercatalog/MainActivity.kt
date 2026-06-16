@@ -76,8 +76,13 @@ class MainActivity : AppCompatActivity(), CardView.Callbacks {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
-        // UniFFI bridge spike (ADR-0012): proves the generated typed bridge links end-to-end.
-        Log.i("UniFFI", "hc_ping -> ${uniffi.hyperffi.hcPing()}")
+        // UniFFI typed read-path smoke test (ADR-0012, stage 2): load a stack and render it via
+        // the generated typed bridge — no JSON. Temporary; CardView adopts it next.
+        runCatching {
+            val demo = uniffi.hyperffi.HyperStack.loadYaml("name: Smoke\ncards:\n  - id: 1\n    name: One")
+            val rl = demo.renderCurrentCard()
+            Log.i("UniFFI", "typed render -> card=${rl.cardName}, items=${rl.items.size}")
+        }.onFailure { Log.e("UniFFI", "typed render failed", it) }
 
         root = FrameLayout(this)
         root.id = View.generateViewId()
