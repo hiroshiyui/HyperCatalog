@@ -7,7 +7,11 @@ use std::collections::HashMap;
 use super::ast::*;
 use super::parser::parse_script;
 use super::value::Value;
-use crate::model::Stack;
+use crate::model::{Rect, Stack};
+
+/// Minimum width/height a script may set via a geometry property, so `set the rect/width`
+/// can't produce a zero or negative size that breaks hit-testing or rendering.
+const MIN_GEOM_SIZE: f32 = 1.0;
 
 /// Side effects the core cannot perform itself; the host carries them out.
 #[derive(Clone, Debug, PartialEq)]
@@ -400,31 +404,31 @@ impl<'s> Runtime<'s> {
         match obj {
             ResolvedObj::Field(fref) => {
                 let loc = self.locate_field(&fref, env, me)?;
-                let (text, fname, vis) = self.field_props(&loc, env, me)?;
+                let f = match loc {
+                    Loc::CardObj(i) => &self.stack.cards[self.card_index].fields[i],
+                    Loc::BgObj(b, i) => &self.stack.backgrounds[b].fields[i],
+                };
                 Ok(match prop.as_str() {
-                    "text" | "value" | "contents" => Value::from_text(text),
-                    "name" | "short name" | "long name" => Value::from_text(fname),
-                    "visible" | "vis022" => Value::Bool(vis),
-                    _ => Value::Empty,
+                    "text" | "value" | "contents" => Value::from_text(f.text.clone()),
+                    "name" | "short name" | "long name" => Value::from_text(f.name.clone()),
+                    "visible" => Value::Bool(f.visible),
+                    "locked" => Value::Bool(f.locked),
+                    "id" => Value::Number(f.id as f64),
+                    _ => geom_get(&prop, f.rect).unwrap_or(Value::Empty),
                 })
             }
             ResolvedObj::Button(bref) => {
                 let loc = self.locate_button(&bref, env, me)?;
-                let (bname, title, vis) = match loc {
-                    Loc::CardObj(i) => {
-                        let b = &self.stack.cards[self.card_index].buttons[i];
-                        (b.name.clone(), b.label().to_string(), b.visible)
-                    }
-                    Loc::BgObj(bi, i) => {
-                        let b = &self.stack.backgrounds[bi].buttons[i];
-                        (b.name.clone(), b.label().to_string(), b.visible)
-                    }
+                let b = match loc {
+                    Loc::CardObj(i) => &self.stack.cards[self.card_index].buttons[i],
+                    Loc::BgObj(bi, i) => &self.stack.backgrounds[bi].buttons[i],
                 };
                 Ok(match prop.as_str() {
-                    "name" | "short name" | "long name" => Value::from_text(bname),
-                    "title" | "text" | "label" => Value::from_text(title),
-                    "visible" => Value::Bool(vis),
-                    _ => Value::Empty,
+                    "name" | "short name" | "long name" => Value::from_text(b.name.clone()),
+                    "title" | "text" | "label" => Value::from_text(b.label().to_string()),
+                    "visible" => Value::Bool(b.visible),
+                    "id" => Value::Number(b.id as f64),
+                    _ => geom_get(&prop, b.rect).unwrap_or(Value::Empty),
                 })
             }
             ResolvedObj::Card => {
@@ -465,7 +469,11 @@ impl<'s> Runtime<'s> {
                     "name" => field.name = v.as_text(),
                     "visible" => field.visible = v.as_bool(),
                     "locked" => field.locked = v.as_bool(),
-                    _ => return Err(format!("unknown field property '{prop}'")),
+                    _ => {
+                        if !geom_set(&prop, &mut field.rect, &v) {
+                            return Err(format!("unknown field property '{prop}'"));
+                        }
+                    }
                 }
             }
             ResolvedObj::Button(bref) => {
@@ -478,7 +486,11 @@ impl<'s> Runtime<'s> {
                     "title" | "text" | "label" => button.title = v.as_text(),
                     "name" => button.name = v.as_text(),
                     "visible" => button.visible = v.as_bool(),
-                    _ => return Err(format!("unknown button property '{prop}'")),
+                    _ => {
+                        if !geom_set(&prop, &mut button.rect, &v) {
+                            return Err(format!("unknown button property '{prop}'"));
+                        }
+                    }
                 }
             }
             ResolvedObj::Card => {
@@ -494,24 +506,6 @@ impl<'s> Runtime<'s> {
             },
         }
         Ok(())
-    }
-
-    fn field_props(
-        &mut self,
-        loc: &Loc,
-        _env: &mut Env,
-        _me: Me,
-    ) -> Result<(String, String, bool), String> {
-        Ok(match loc {
-            Loc::CardObj(i) => {
-                let f = &self.stack.cards[self.card_index].fields[*i];
-                (f.text.clone(), f.name.clone(), f.visible)
-            }
-            Loc::BgObj(b, i) => {
-                let f = &self.stack.backgrounds[*b].fields[*i];
-                (f.text.clone(), f.name.clone(), f.visible)
-            }
-        })
     }
 
     /// Resolve an `ObjectRef` (possibly `me`) into a concrete object descriptor we can
@@ -678,6 +672,98 @@ fn find_index<'a>(
             .map(|(i, _)| i)
             .ok_or_else(|| format!("no object named \"{want}\""))
     }
+}
+
+/// Read a geometric property off a rect. HyperTalk `loc`/`location` is the center point
+/// `"h,v"`; `rect`/`rectangle` is `"left,top,right,bottom"`. Returns None for non-geometry.
+fn geom_get(prop: &str, r: Rect) -> Option<Value> {
+    let num = |x: f32| Value::Number(x as f64);
+    Some(match prop {
+        "loc" | "location" => Value::from_text(format!(
+            "{},{}",
+            num(r.x + r.w / 2.0).as_text(),
+            num(r.y + r.h / 2.0).as_text(),
+        )),
+        "rect" | "rectangle" => Value::from_text(format!(
+            "{},{},{},{}",
+            num(r.x).as_text(),
+            num(r.y).as_text(),
+            num(r.x + r.w).as_text(),
+            num(r.y + r.h).as_text(),
+        )),
+        "width" => num(r.w),
+        "height" => num(r.h),
+        "top" => num(r.y),
+        "left" => num(r.x),
+        "bottom" => num(r.y + r.h),
+        "right" => num(r.x + r.w),
+        _ => return None,
+    })
+}
+
+/// Apply a geometric property to a rect. Moves keep size; `width`/`height` keep the
+/// top-left corner; `loc` re-centers; `rect` sets all four edges. Returns false for a
+/// non-geometry property (so the caller can report it as unknown). Malformed coordinate
+/// strings are ignored (no change), matching HyperTalk's lenient `set`.
+fn geom_set(prop: &str, r: &mut Rect, v: &Value) -> bool {
+    match prop {
+        "loc" | "location" => {
+            if let Some([cx, cy]) = parse_coords::<2>(v) {
+                r.x = cx - r.w / 2.0;
+                r.y = cy - r.h / 2.0;
+            }
+        }
+        "rect" | "rectangle" => {
+            if let Some([l, t, right, bottom]) = parse_coords::<4>(v) {
+                r.x = l;
+                r.y = t;
+                r.w = (right - l).max(MIN_GEOM_SIZE);
+                r.h = (bottom - t).max(MIN_GEOM_SIZE);
+            }
+        }
+        "width" => {
+            if let Some(n) = v.as_number() {
+                r.w = (n as f32).max(MIN_GEOM_SIZE);
+            }
+        }
+        "height" => {
+            if let Some(n) = v.as_number() {
+                r.h = (n as f32).max(MIN_GEOM_SIZE);
+            }
+        }
+        "top" => {
+            if let Some(n) = v.as_number() {
+                r.y = n as f32;
+            }
+        }
+        "left" => {
+            if let Some(n) = v.as_number() {
+                r.x = n as f32;
+            }
+        }
+        "bottom" => {
+            if let Some(n) = v.as_number() {
+                r.y = n as f32 - r.h;
+            }
+        }
+        "right" => {
+            if let Some(n) = v.as_number() {
+                r.x = n as f32 - r.w;
+            }
+        }
+        _ => return false,
+    }
+    true
+}
+
+/// Parse exactly `N` comma-separated numbers from a value's text (e.g. `"10,20,90,140"`).
+fn parse_coords<const N: usize>(v: &Value) -> Option<[f32; N]> {
+    let parts: Vec<f32> = v
+        .as_text()
+        .split(',')
+        .filter_map(|s| s.trim().parse().ok())
+        .collect();
+    parts.try_into().ok()
 }
 
 fn eval_binop(op: BinOp, a: Value, b: Value) -> Result<Value, String> {

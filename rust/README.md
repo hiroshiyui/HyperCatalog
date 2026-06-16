@@ -50,3 +50,15 @@ Handlers `on <msg> ... end <msg>` (`mouseUp`, `openCard`, `openStack`); commands
 expressions with `& && + - * / mod`, comparisons, `the <prop> of <object>`,
 `the number of cards`, `length()`, `field "name"` contents. Message path:
 object → card → background → stack.
+
+Object properties via `get`/`set the <prop> of <object>`:
+
+- buttons & fields: `name`, `visible`, `id` (read-only); buttons also `title`; fields also
+  `text`/`value`/`contents` and `locked`.
+- geometry (buttons & fields): `loc`/`location` (center `"h,v"`), `rect`/`rectangle`
+  (`"left,top,right,bottom"`), `width`, `height`, `top`, `left`, `bottom`, `right`. Setting
+  `width`/`height` keeps the top-left corner; `loc` re-centers. See
+  [`doc/adr/0006-geometry-properties.md`](../doc/adr/0006-geometry-properties.md).
+- card & stack: `name`, `number`.
+
+Not yet supported: `textStyle`/`textSize`/`textFont` (no backing model fields yet).

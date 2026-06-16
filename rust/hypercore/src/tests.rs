@@ -227,6 +227,78 @@ fn authored_objects_persist_through_json() {
     assert_eq!(p["y"], 200.0);
 }
 
+/// Helper: rewrite the "Inc" button (id 20) to run `body`, then tap it.
+fn run_on_inc(s: &mut Session, body: &str) {
+    let src = format!("on mouseUp\n  {body}\nend mouseUp");
+    assert!(s.set_object_script(20, &src));
+    let r = s.dispatch_touch(20.0, 120.0, "up");
+    assert!(r.error.is_none(), "script error: {:?}", r.error);
+}
+
+fn field_text(s: &Session, id: u32) -> String {
+    s.render_current_card()
+        .items
+        .into_iter()
+        .find(|d| d.id == id)
+        .unwrap()
+        .text
+}
+
+#[test]
+fn reads_geometry_properties() {
+    let mut s = Session::load_from_json(&sample_json()).unwrap();
+    // "input" field id 11 has rect {x:10,y:50,w:100,h:30}; results go into "counter" (id 10).
+    run_on_inc(&mut s, r#"put the width of field "input" into field "counter""#);
+    assert_eq!(field_text(&s, 10), "100");
+    run_on_inc(&mut s, r#"put the height of field "input" into field "counter""#);
+    assert_eq!(field_text(&s, 10), "30");
+    run_on_inc(&mut s, r#"put the loc of field "input" into field "counter""#);
+    assert_eq!(field_text(&s, 10), "60,65"); // center: (10+50, 50+15)
+    run_on_inc(&mut s, r#"put the rect of field "input" into field "counter""#);
+    assert_eq!(field_text(&s, 10), "10,50,110,80");
+    run_on_inc(&mut s, r#"put the right of field "input" into field "counter""#);
+    assert_eq!(field_text(&s, 10), "110");
+    run_on_inc(&mut s, r#"put the id of field "input" into field "counter""#);
+    assert_eq!(field_text(&s, 10), "11");
+}
+
+#[test]
+fn writes_geometry_properties() {
+    let mut s = Session::load_from_json(&sample_json()).unwrap();
+
+    // loc re-centers, keeping size (100x30): center (200,200) -> x=150, y=185.
+    run_on_inc(&mut s, r#"set the loc of field "input" to "200,200""#);
+    let p: serde_json::Value =
+        serde_json::from_str(&s.get_object_props(11).unwrap()).unwrap();
+    assert_eq!(p["x"], 150.0);
+    assert_eq!(p["y"], 185.0);
+    assert_eq!(p["w"], 100.0); // unchanged
+
+    // rect sets all four edges.
+    run_on_inc(&mut s, r#"set the rect of field "input" to "0,0,40,60""#);
+    let p: serde_json::Value =
+        serde_json::from_str(&s.get_object_props(11).unwrap()).unwrap();
+    assert_eq!(p["x"], 0.0);
+    assert_eq!(p["w"], 40.0);
+    assert_eq!(p["h"], 60.0);
+
+    // width keeps the top-left corner; a sub-minimum value is clamped.
+    run_on_inc(&mut s, r#"set the width of field "input" to "0""#);
+    let p: serde_json::Value =
+        serde_json::from_str(&s.get_object_props(11).unwrap()).unwrap();
+    assert!(p["w"].as_f64().unwrap() >= 1.0, "width clamped to minimum");
+    assert_eq!(p["x"], 0.0);
+}
+
+#[test]
+fn unknown_property_still_errors() {
+    let mut s = Session::load_from_json(&sample_json()).unwrap();
+    let src = "on mouseUp\n  set the bogus of field \"input\" to \"1\"\nend mouseUp";
+    assert!(s.set_object_script(20, src));
+    let r = s.dispatch_touch(20.0, 120.0, "up");
+    assert!(r.error.is_some(), "unknown property should error");
+}
+
 #[test]
 fn answer_produces_host_effect() {
     let json = r#"{
