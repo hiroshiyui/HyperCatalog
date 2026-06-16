@@ -64,12 +64,29 @@ HyperCard-like player: a platform-agnostic Rust core (`rust/`) plus a thin Andro
 
 ## Step 5 — Test coverage
 
-- `hypercore` unit tests (`src/tests.rs`) cover parser, interpreter, and `Session` behaviour. New
-  HyperTalk constructs need both a **parse** test and an **eval** test.
+Assess coverage on **both** halves of the project — never sign off on the Rust side alone because
+it is easier to run. Drive any coverage improvement from **tool-reported data**, not a guess about
+what "looks" untested: gather a report and target the lines/branches it actually flags.
+
+**Rust core (`rust/`):**
+- `hypercore` unit tests (`src/tests.rs`) cover parser, interpreter, `Value` coercion, and
+  `Session` behaviour. New HyperTalk constructs need both a **parse** test and an **eval** test.
 - Every fixed bug gets a regression test (pattern: `background_button_script_runs`).
 - The `hyper-desktop` REPL must still drive `sample.json` end-to-end (`tap`, `go`, `type`, `dump`).
 - Tests must not depend on `Date::now`/`Math::random` (unavailable in the workflow harness; the
   interpreter's `random()` uses a seeded xorshift — keep it deterministic-friendly).
+- Measure with `cargo llvm-cov` (or `cargo tarpaulin`) when judging whether a module is covered.
+
+**Android host (`app/`):**
+- Local JVM unit tests live in `app/src/test` and run fast offline via
+  `./gradlew :app:testDebugUnitTest` (no emulator, no `.so` — JNI is loaded only at runtime).
+  Instrumented tests in `app/src/androidTest` need a device/emulator.
+- Pure host logic must be **framework-free and unit-tested**, not buried in a `View`. The letterbox
+  coordinate math lives in `CardTransform` precisely so it is testable on the JVM
+  (`CardTransformTest`); prefer extracting such logic over leaving it untestable inside `CardView`.
+  When reviewing, flag testable logic that is trapped behind Android types (`Canvas`/`Paint`/
+  `MotionEvent`) with no test.
+- Measure with JaCoCo (`createDebugUnitTestCoverageReport`) and target what it reports.
 
 ---
 
@@ -119,10 +136,11 @@ Apply fixes for all Critical and Major findings directly, then verify the whole 
 
 ```bash
 cd rust && cargo test -p hypercore && cargo clippy --workspace --all-targets && cargo fmt --all --check
-cd .. && ./gradlew :app:assembleDebug
+cd .. && ./gradlew :app:testDebugUnitTest && ./gradlew :app:assembleDebug
 ```
 
-Do not consider the review complete until tests pass, clippy is clean, and the APK assembles.
+Do not consider the review complete until **both** the Rust and Android unit tests pass, clippy is
+clean, and the APK assembles.
 Diagnose and resolve any failure before finishing. If a Rust source change was made, ensure the
 `.so` is rebuilt (the `:app:assembleDebug` `cargoNdkBuild` task does this) before any on-device
 re-verification.

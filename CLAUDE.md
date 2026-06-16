@@ -90,4 +90,14 @@ reinstalling — Gradle won't see Rust source changes unless `cargoNdkBuild` rer
 - The HyperTalk interpreter is a **subset** (documented in `rust/README.md`). Unknown custom
   messages (`Stmt::Send`) are no-ops; `repeat`/property coverage is partial.
 
+## Test coverage
+
+When discussing or improving test coverage, consider **both** the Rust core (`rust/hypercore`
+tests, plus `hyperffi`/`hyper-desktop`) **and** the Android/Kotlin side (`app/src/test`,
+`app/src/androidTest`) — don't stop at the Rust half just because it's easier to run. Drive
+improvements from **tool-reported data**, not guesses about what "looks" untested: gather
+coverage with the appropriate tooling (e.g. `cargo llvm-cov`/`cargo tarpaulin` for Rust,
+JaCoCo via `./gradlew :app:testDebugUnitTest`/`createDebugCoverageReport` for Android) and
+target the lines/branches the reports actually flag.
+
 See `rust/README.md` for the prerequisites and the full list of supported HyperTalk constructs.
