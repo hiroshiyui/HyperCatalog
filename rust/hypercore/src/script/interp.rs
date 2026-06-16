@@ -414,6 +414,10 @@ impl<'s> Runtime<'s> {
                     "visible" => Value::Bool(f.visible),
                     "locked" => Value::Bool(f.locked),
                     "id" => Value::Number(f.id as f64),
+                    "textfont" => Value::from_text(f.text_font.clone()),
+                    "textsize" => Value::Number(f.text_size as f64),
+                    "textstyle" => Value::from_text(text_style_get(&f.text_style)),
+                    "textalign" => Value::from_text(f.text_align.clone()),
                     _ => geom_get(&prop, f.rect).unwrap_or(Value::Empty),
                 })
             }
@@ -428,6 +432,10 @@ impl<'s> Runtime<'s> {
                     "title" | "text" | "label" => Value::from_text(b.label().to_string()),
                     "visible" => Value::Bool(b.visible),
                     "id" => Value::Number(b.id as f64),
+                    "textfont" => Value::from_text(b.text_font.clone()),
+                    "textsize" => Value::Number(b.text_size as f64),
+                    "textstyle" => Value::from_text(text_style_get(&b.text_style)),
+                    "textalign" => Value::from_text(b.text_align.clone()),
                     _ => geom_get(&prop, b.rect).unwrap_or(Value::Empty),
                 })
             }
@@ -469,6 +477,14 @@ impl<'s> Runtime<'s> {
                     "name" => field.name = v.as_text(),
                     "visible" => field.visible = v.as_bool(),
                     "locked" => field.locked = v.as_bool(),
+                    "textfont" => field.text_font = v.as_text(),
+                    "textsize" => {
+                        if let Some(n) = v.as_number() {
+                            field.text_size = n as f32;
+                        }
+                    }
+                    "textstyle" => field.text_style = v.as_text(),
+                    "textalign" => field.text_align = v.as_text(),
                     _ => {
                         if !geom_set(&prop, &mut field.rect, &v) {
                             return Err(format!("unknown field property '{prop}'"));
@@ -486,6 +502,14 @@ impl<'s> Runtime<'s> {
                     "title" | "text" | "label" => button.title = v.as_text(),
                     "name" => button.name = v.as_text(),
                     "visible" => button.visible = v.as_bool(),
+                    "textfont" => button.text_font = v.as_text(),
+                    "textsize" => {
+                        if let Some(n) = v.as_number() {
+                            button.text_size = n as f32;
+                        }
+                    }
+                    "textstyle" => button.text_style = v.as_text(),
+                    "textalign" => button.text_align = v.as_text(),
                     _ => {
                         if !geom_set(&prop, &mut button.rect, &v) {
                             return Err(format!("unknown button property '{prop}'"));
@@ -671,6 +695,15 @@ fn find_index<'a>(
             .find(|(_, name)| name.eq_ignore_ascii_case(&want))
             .map(|(i, _)| i)
             .ok_or_else(|| format!("no object named \"{want}\""))
+    }
+}
+
+/// `the textStyle` reads back as `"plain"` when no styles are set (HyperTalk convention).
+fn text_style_get(style: &str) -> String {
+    if style.is_empty() {
+        "plain".to_string()
+    } else {
+        style.to_string()
     }
 }
 

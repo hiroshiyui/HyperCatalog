@@ -291,6 +291,52 @@ fn writes_geometry_properties() {
 }
 
 #[test]
+fn text_style_properties_default_and_set() {
+    let mut s = Session::load_from_json(&sample_json()).unwrap();
+
+    // Defaults: size 16, style reads back as "plain".
+    run_on_inc(&mut s, r#"put the textSize of field "input" into field "counter""#);
+    assert_eq!(field_text(&s, 10), "16");
+    run_on_inc(&mut s, r#"put the textStyle of field "input" into field "counter""#);
+    assert_eq!(field_text(&s, 10), "plain");
+
+    // Set style, size, font, align via script.
+    run_on_inc(&mut s, r#"set the textStyle of field "input" to "bold,italic""#);
+    run_on_inc(&mut s, r#"set the textSize of field "input" to 24"#);
+    run_on_inc(&mut s, r#"set the textFont of field "input" to "serif""#);
+    run_on_inc(&mut s, r#"set the textAlign of field "input" to "center""#);
+
+    let p: serde_json::Value =
+        serde_json::from_str(&s.get_object_props(11).unwrap()).unwrap();
+    assert_eq!(p["text_style"], "bold,italic");
+    assert_eq!(p["text_size"], 24.0);
+    assert_eq!(p["text_font"], "serif");
+    assert_eq!(p["text_align"], "center");
+}
+
+#[test]
+fn text_attrs_default_in_render_and_round_trip() {
+    let mut s = Session::load_from_json(&sample_json()).unwrap();
+    // Render carries text attributes; defaults are size 16, empty style/font/align.
+    let item = s
+        .render_current_card()
+        .items
+        .into_iter()
+        .find(|d| d.id == 11)
+        .unwrap();
+    assert_eq!(item.text_size, 16.0);
+    assert_eq!(item.text_style, "");
+
+    // Authoring props round-trip through JSON save/load.
+    assert!(s.set_object_props(11, r#"{"text_style":"underline","text_size":20}"#));
+    let s2 = Session::load_from_json(&s.to_json()).unwrap();
+    let p: serde_json::Value =
+        serde_json::from_str(&s2.get_object_props(11).unwrap()).unwrap();
+    assert_eq!(p["text_style"], "underline");
+    assert_eq!(p["text_size"], 20.0);
+}
+
+#[test]
 fn unknown_property_still_errors() {
     let mut s = Session::load_from_json(&sample_json()).unwrap();
     let src = "on mouseUp\n  set the bogus of field \"input\" to \"1\"\nend mouseUp";

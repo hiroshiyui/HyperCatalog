@@ -17,6 +17,7 @@ import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.LinearLayout
+import android.widget.ScrollView
 import android.widget.Spinner
 import android.widget.TextView
 import android.widget.Toast
@@ -320,9 +321,48 @@ class MainActivity : AppCompatActivity(), CardView.Callbacks {
             container.addView(lockedCheck)
         }
 
+        // --- text styling (applies to both buttons and fields) ---
+        val sizeNow = props.optDouble("text_size", 16.0)
+        val sizeInput = textField(
+            if (sizeNow == sizeNow.toLong().toDouble()) sizeNow.toLong().toString() else sizeNow.toString(),
+        ).apply { inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL }
+        container.addView(label("Text size"))
+        container.addView(sizeInput)
+
+        val fonts = listOf("default", "sans-serif", "serif", "monospace")
+        val fontSpinner = Spinner(this).apply {
+            adapter = ArrayAdapter(
+                this@MainActivity, android.R.layout.simple_spinner_dropdown_item, fonts,
+            )
+            val cur = props.optString("text_font").ifEmpty { "default" }
+            setSelection(fonts.indexOf(cur).coerceAtLeast(0))
+        }
+        container.addView(label("Font"))
+        container.addView(fontSpinner)
+
+        val aligns = listOf("left", "center", "right")
+        val alignSpinner = Spinner(this).apply {
+            adapter = ArrayAdapter(
+                this@MainActivity, android.R.layout.simple_spinner_dropdown_item, aligns,
+            )
+            val cur = props.optString("text_align").ifEmpty { "left" }
+            setSelection(aligns.indexOf(cur).coerceAtLeast(0))
+        }
+        container.addView(label("Align"))
+        container.addView(alignSpinner)
+
+        val styleNow = props.optString("text_style").lowercase()
+        val boldCheck = CheckBox(this).apply { text = "Bold"; isChecked = "bold" in styleNow }
+        val italicCheck = CheckBox(this).apply { text = "Italic"; isChecked = "italic" in styleNow }
+        val underlineCheck =
+            CheckBox(this).apply { text = "Underline"; isChecked = "underline" in styleNow }
+        container.addView(boldCheck)
+        container.addView(italicCheck)
+        container.addView(underlineCheck)
+
         AlertDialog.Builder(this)
             .setTitle("Properties · object #$objectId")
-            .setView(container)
+            .setView(ScrollView(this).apply { addView(container) })
             .setPositiveButton("Save") { _, _ ->
                 val out = JSONObject().put("name", nameInput.text.toString())
                 if (kind == "button") {
@@ -332,6 +372,20 @@ class MainActivity : AppCompatActivity(), CardView.Callbacks {
                     out.put("text", textInput!!.text.toString())
                     out.put("locked", lockedCheck!!.isChecked)
                 }
+                out.put("text_size", sizeInput.text.toString().toDoubleOrNull() ?: 16.0)
+                out.put(
+                    "text_font",
+                    (fontSpinner.selectedItem as String).let { if (it == "default") "" else it },
+                )
+                out.put("text_align", alignSpinner.selectedItem as String)
+                out.put(
+                    "text_style",
+                    buildList {
+                        if (boldCheck.isChecked) add("bold")
+                        if (italicCheck.isChecked) add("italic")
+                        if (underlineCheck.isChecked) add("underline")
+                    }.joinToString(","),
+                )
                 NativeBridge.nativeSetObjectProps(handle, objectId, out.toString())
                 cardView.refresh()
             }

@@ -5,6 +5,7 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.RectF
+import android.graphics.Typeface
 import android.util.AttributeSet
 import android.view.MotionEvent
 import android.view.View
@@ -22,6 +23,10 @@ data class DrawItem(
     val style: String,
     val visible: Boolean,
     val locked: Boolean,
+    val textFont: String,
+    val textSize: Float,
+    val textStyle: String,
+    val textAlign: String,
 )
 
 /** A host effect emitted by a script (`answer`, `beep`, message-box `put`). */
@@ -153,6 +158,10 @@ class CardView @JvmOverloads constructor(
                 style = it.optString("style"),
                 visible = it.optBoolean("visible", true),
                 locked = it.optBoolean("locked", false),
+                textFont = it.optString("text_font"),
+                textSize = it.optDouble("text_size", 16.0).toFloat(),
+                textStyle = it.optString("text_style"),
+                textAlign = it.optString("text_align"),
             )
         }
     }
@@ -171,9 +180,6 @@ class CardView @JvmOverloads constructor(
         recomputeTransform(width.toFloat(), height.toFloat())
         // card paper
         canvas.drawRect(offsetX, offsetY, offsetX + cardW * scale, offsetY + cardH * scale, cardPaint)
-
-        textPaint.textSize = 16f * scale
-        buttonText.textSize = 16f * scale
 
         for (item in items) {
             if (!item.visible) continue
@@ -208,6 +214,7 @@ class CardView @JvmOverloads constructor(
                 canvas.drawRoundRect(r, radius, radius, buttonStroke)
             }
         }
+        applyTextStyle(buttonText, item) // labels stay centered (buttonText keeps Align.CENTER)
         val baseline = r.centerY() - (buttonText.descent() + buttonText.ascent()) / 2f
         canvas.drawText(item.text, r.centerX(), baseline, buttonText)
     }
@@ -217,12 +224,36 @@ class CardView @JvmOverloads constructor(
             canvas.drawRect(r, fieldFill)
         }
         canvas.drawRect(r, fieldStroke)
-        // single-line text, vertically centered, inset a little
+        applyTextStyle(textPaint, item)
+        // single-line text, vertically centered, horizontally aligned per textAlign
         val baseline = r.centerY() - (textPaint.descent() + textPaint.ascent()) / 2f
+        val pad = 6f * scale
+        val (x, align) = when (item.textAlign.lowercase()) {
+            "center" -> r.centerX() to Paint.Align.CENTER
+            "right" -> (r.right - pad) to Paint.Align.RIGHT
+            else -> (r.left + pad) to Paint.Align.LEFT
+        }
+        textPaint.textAlign = align
         canvas.save()
         canvas.clipRect(r)
-        canvas.drawText(item.text, r.left + 6f * scale, baseline, textPaint)
+        canvas.drawText(item.text, x, baseline, textPaint)
         canvas.restore()
+    }
+
+    /** Configure a text paint from an item's font/size/style attributes (scaled to view px). */
+    private fun applyTextStyle(paint: Paint, item: DrawItem) {
+        paint.textSize = (if (item.textSize > 0f) item.textSize else 16f) * scale
+        val s = item.textStyle.lowercase()
+        val flags = (if ("bold" in s) Typeface.BOLD else 0) or
+            (if ("italic" in s) Typeface.ITALIC else 0)
+        val family = when (item.textFont.lowercase()) {
+            "serif" -> Typeface.SERIF
+            "monospace", "mono" -> Typeface.MONOSPACE
+            "", "sans-serif", "sans", "default" -> Typeface.SANS_SERIF
+            else -> Typeface.create(item.textFont, Typeface.NORMAL)
+        }
+        paint.typeface = Typeface.create(family, flags)
+        paint.isUnderlineText = "underline" in s
     }
 
     private fun toView(item: DrawItem): RectF = RectF(

@@ -44,6 +44,11 @@ pub struct DrawCmd {
     pub style: String,
     pub visible: bool,
     pub locked: bool,
+    /// Text styling for the host to apply when drawing the label/contents.
+    pub text_font: String,
+    pub text_size: f32,
+    pub text_style: String,
+    pub text_align: String,
 }
 
 /// A host effect to perform after a dispatch (dialog, beep, message-box output).
@@ -267,6 +272,10 @@ impl Session {
                     style: ButtonStyle::Rounded,
                     visible: true,
                     script: String::new(),
+                    text_font: String::new(),
+                    text_size: 16.0,
+                    text_style: String::new(),
+                    text_align: String::new(),
                 });
                 Some(id)
             }
@@ -284,6 +293,10 @@ impl Session {
                     locked: false,
                     visible: true,
                     script: String::new(),
+                    text_font: String::new(),
+                    text_size: 16.0,
+                    text_style: String::new(),
+                    text_align: String::new(),
                 });
                 Some(id)
             }
@@ -360,6 +373,8 @@ impl Session {
                     "id": b.id, "kind": "button", "name": b.name, "title": b.title,
                     "style": format!("{:?}", b.style).to_lowercase(),
                     "x": b.rect.x, "y": b.rect.y, "w": b.rect.w, "h": b.rect.h,
+                    "text_font": b.text_font, "text_size": b.text_size,
+                    "text_style": b.text_style, "text_align": b.text_align,
                 })
                 .to_string(),
             );
@@ -370,6 +385,8 @@ impl Session {
                     "id": f.id, "kind": "field", "name": f.name, "text": f.text,
                     "locked": f.locked,
                     "x": f.rect.x, "y": f.rect.y, "w": f.rect.w, "h": f.rect.h,
+                    "text_font": f.text_font, "text_size": f.text_size,
+                    "text_style": f.text_style, "text_align": f.text_align,
                 })
                 .to_string(),
             );
@@ -624,6 +641,13 @@ fn apply_button_props(b: &mut Button, v: &serde_json::Value) {
     if let Some(s) = v.get("style").and_then(|x| x.as_str()) {
         b.style = parse_style(s);
     }
+    apply_text_attrs(
+        &mut b.text_font,
+        &mut b.text_size,
+        &mut b.text_style,
+        &mut b.text_align,
+        v,
+    );
 }
 
 fn apply_field_props(f: &mut Field, v: &serde_json::Value) {
@@ -635,6 +659,40 @@ fn apply_field_props(f: &mut Field, v: &serde_json::Value) {
     }
     if let Some(b) = v.get("locked").and_then(|x| x.as_bool()) {
         f.locked = b;
+    }
+    apply_text_attrs(
+        &mut f.text_font,
+        &mut f.text_size,
+        &mut f.text_style,
+        &mut f.text_align,
+        v,
+    );
+}
+
+/// Apply the four text-styling keys (any subset) to an object's fields. Shared by buttons
+/// and fields. `text_size` accepts a JSON number or a numeric string.
+fn apply_text_attrs(
+    font: &mut String,
+    size: &mut f32,
+    style: &mut String,
+    align: &mut String,
+    v: &serde_json::Value,
+) {
+    if let Some(s) = v.get("text_font").and_then(|x| x.as_str()) {
+        *font = s.to_string();
+    }
+    if let Some(ts) = v.get("text_size") {
+        if let Some(n) = ts.as_f64() {
+            *size = n as f32;
+        } else if let Some(n) = ts.as_str().and_then(|s| s.trim().parse::<f32>().ok()) {
+            *size = n;
+        }
+    }
+    if let Some(s) = v.get("text_style").and_then(|x| x.as_str()) {
+        *style = s.to_string();
+    }
+    if let Some(s) = v.get("text_align").and_then(|x| x.as_str()) {
+        *align = s.to_string();
     }
 }
 
@@ -666,6 +724,10 @@ fn field_cmd(f: &crate::model::Field) -> DrawCmd {
         style: String::new(),
         visible: f.visible,
         locked: f.locked,
+        text_font: f.text_font.clone(),
+        text_size: f.text_size,
+        text_style: f.text_style.clone(),
+        text_align: f.text_align.clone(),
     }
 }
 
@@ -681,6 +743,10 @@ fn button_cmd(b: &crate::model::Button) -> DrawCmd {
         style: format!("{:?}", b.style).to_lowercase(),
         visible: b.visible,
         locked: false,
+        text_font: b.text_font.clone(),
+        text_size: b.text_size,
+        text_style: b.text_style.clone(),
+        text_align: b.text_align.clone(),
     }
 }
 

@@ -59,6 +59,8 @@ Object properties via `get`/`set the <prop> of <object>`:
   (`"left,top,right,bottom"`), `width`, `height`, `top`, `left`, `bottom`, `right`. Setting
   `width`/`height` keeps the top-left corner; `loc` re-centers. See
   [`doc/adr/0006-geometry-properties.md`](../doc/adr/0006-geometry-properties.md).
+- text styling (buttons & fields): `textFont` (`sans-serif`/`serif`/`monospace`), `textSize`,
+  `textStyle` (comma list of `bold`/`italic`/`underline`; reads back `plain` when unset),
+  `textAlign` (`left`/`center`/`right`, applied to fields). See
+  [`doc/adr/0007-text-styling.md`](../doc/adr/0007-text-styling.md).
 - card & stack: `name`, `number`.
-
-Not yet supported: `textStyle`/`textSize`/`textFont` (no backing model fields yet).

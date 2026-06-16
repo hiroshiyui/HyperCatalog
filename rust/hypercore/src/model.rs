@@ -43,6 +43,17 @@ pub struct Button {
     /// HyperTalk source for this object's handlers.
     #[serde(default)]
     pub script: String,
+    /// Font family name ("", "sans-serif", "serif", "monospace"); "" = host default.
+    #[serde(default)]
+    pub text_font: String,
+    #[serde(default = "default_text_size")]
+    pub text_size: f32,
+    /// Comma-separated styles, any of `bold`, `italic`, `underline`; "" = plain.
+    #[serde(default)]
+    pub text_style: String,
+    /// `left`, `center`, or `right`; "" = host default (left for fields).
+    #[serde(default)]
+    pub text_align: String,
 }
 
 impl Button {
@@ -69,6 +80,17 @@ pub struct Field {
     pub visible: bool,
     #[serde(default)]
     pub script: String,
+    /// Font family name ("", "sans-serif", "serif", "monospace"); "" = host default.
+    #[serde(default)]
+    pub text_font: String,
+    #[serde(default = "default_text_size")]
+    pub text_size: f32,
+    /// Comma-separated styles, any of `bold`, `italic`, `underline`; "" = plain.
+    #[serde(default)]
+    pub text_style: String,
+    /// `left`, `center`, or `right`; "" = host default (left for fields).
+    #[serde(default)]
+    pub text_align: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -121,4 +143,8 @@ impl Stack {
 
 fn default_true() -> bool {
     true
+}
+
+fn default_text_size() -> f32 {
+    16.0
 }

@@ -50,13 +50,14 @@ was designed to accommodate it without a rewrite. See
 ### Phase 3 — Broader HyperTalk coverage *(in progress)*
 
 Fill documented interpreter gaps. **Done:** geometric properties — `loc`/`location`,
-`rect`/`rectangle`, `width`/`height`, `top`/`left`/`bottom`/`right`, and read-only `id` on
-buttons and fields ([ADR-0006](adr/0006-geometry-properties.md)). **Remaining:** text
-properties (`textStyle`/`textSize`/`textFont`, which need new model + render fields), the
-message box UI, custom-message dispatch up the path (today `Stmt::Send` of an unknown command
-is a no-op), `visual effect`, and fuller `repeat`/`pass`/`return` semantics.
+`rect`/`rectangle`, `width`/`height`, `top`/`left`/`bottom`/`right`, and read-only `id`
+([ADR-0006](adr/0006-geometry-properties.md)); and text styling — `textFont`, `textSize`,
+`textStyle` (bold/italic/underline), `textAlign` on buttons and fields, rendered and editable in
+the inspector ([ADR-0007](adr/0007-text-styling.md)). **Remaining:** the message box UI,
+custom-message dispatch up the path (today `Stmt::Send` of an unknown command is a no-op),
+`visual effect`, and fuller `repeat`/`pass`/`return` semantics.
 
-*Enables: scripts that move/resize/show objects (done) and, later, restyle text and send their
+*Enables: scripts that move/resize/show objects and restyle text (done) and, later, send their
 own messages.*
 
 ### Phase 4 — Persistence & rendering polish
@@ -87,3 +88,4 @@ Rust-native — see [ADR-0001](adr/0001-rust-native-hypertalk.md).
 - [ADR-0004 — In-app HyperTalk script editor](adr/0004-in-app-script-editor.md)
 - [ADR-0005 — On-device object authoring](adr/0005-object-authoring.md)
 - [ADR-0006 — HyperTalk geometry properties](adr/0006-geometry-properties.md)
+- [ADR-0007 — Text styling](adr/0007-text-styling.md)
