@@ -22,8 +22,9 @@ architecture are recorded as ADRs under [`doc/adr/`](adr/).
   `nativeDispatchTouch`, `nativeDispatchGesture`, `nativeSetFieldText`, `nativeToJson`,
   `nativeFree`), plus the authoring calls, exchanging JSON strings. See
   [ADR-0002](adr/0002-json-string-jni-bridge.md).
-- **Sample content.** `assets/sample.json` (demo) and `assets/productivity.json` (To-Do,
-  Counters, Tip Split, Calculator, Temperature, Length); the latter is the default stack.
+- **Sample content.** `assets/sample.json` (demo), `assets/productivity.json` (To-Do,
+  Counters, Tip Split, Calculator, Temperature, Length — the default stack), and
+  `assets/gestures.json` (a 3-card swipe/long-press/double-tap demo for the touch gestures).
 
 ## Direction
 
