@@ -96,3 +96,4 @@ Rust-native — see [ADR-0001](adr/0001-rust-native-hypertalk.md).
 - [ADR-0008 — Native-view rendering](adr/0008-native-view-rendering.md) *(proposed)*
 - [ADR-0009 — Touchscreen gestures](adr/0009-touchscreen-gestures.md)
 - [ADR-0010 — Modern UI considerations](adr/0010-modern-ui-considerations.md)
+- [ADR-0011 — YAML stack files](adr/0011-yaml-stack-files.md)

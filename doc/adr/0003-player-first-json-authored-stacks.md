@@ -1,6 +1,8 @@
 # ADR-0003 — Player-first; stacks authored as JSON
 
-- Status: Accepted
+- Status: Accepted (the authoring *format* is revised by
+  [ADR-0011](0011-yaml-stack-files.md), which adopts YAML for readability; the player-first stance
+  stands)
 - Date: 2026-06-16 (records a decision made at project inception)
 
 ## Context
