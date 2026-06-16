@@ -13,6 +13,7 @@ crate-type = ["cdylib"]
 [dependencies]
 hypercore = { workspace = true }
 serde_json = { workspace = true }
+uniffi = { version = "0.31.1", features = ["cli"] }
 
 [target.'cfg(target_os = "android")'.dependencies]
 jni = "0.21"

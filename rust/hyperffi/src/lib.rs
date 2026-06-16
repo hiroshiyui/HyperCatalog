@@ -7,3 +7,13 @@
 
 #[cfg(target_os = "android")]
 mod android;
+
+// --- UniFFI toolchain spike (ADR-0012) ---
+// Minimal proc-macro export to validate that UniFFI builds under this toolchain before the
+// real bridge migration. Coexists with the hand-written JNI during the staged port.
+uniffi::setup_scaffolding!();
+
+#[uniffi::export]
+fn hc_ping() -> String {
+    "pong".to_string()
+}
