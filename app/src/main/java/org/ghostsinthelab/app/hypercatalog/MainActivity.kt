@@ -11,6 +11,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
+import android.widget.Button
 import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.Toast
@@ -33,6 +34,7 @@ class MainActivity : AppCompatActivity(), CardView.Callbacks {
     private lateinit var root: FrameLayout
     private lateinit var cardView: CardView
     private lateinit var editor: EditText
+    private lateinit var editToggle: Button
     private var editingFieldId: Int = -1
 
     private val savedStack: File by lazy { File(filesDir, "stack.json") }
@@ -70,6 +72,23 @@ class MainActivity : AppCompatActivity(), CardView.Callbacks {
             }
         }
         root.addView(editor)
+
+        // Authoring toggle: flip taps between "run the script" and "edit the script".
+        editToggle = Button(this).apply {
+            text = "Edit"
+            layoutParams = FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                Gravity.TOP or Gravity.END,
+            )
+            setOnClickListener {
+                commitPendingEdit()
+                val on = !cardView.editMode
+                cardView.editMode = on
+                text = if (on) "Done" else "Edit"
+            }
+        }
+        root.addView(editToggle)
 
         setContentView(root)
         ViewCompat.setOnApplyWindowInsetsListener(root) { v, insets ->
@@ -133,6 +152,42 @@ class MainActivity : AppCompatActivity(), CardView.Callbacks {
 
     override fun commitPendingEdit() {
         if (editor.visibility == View.VISIBLE) commitEdit()
+    }
+
+    override fun onEditScript(objectId: Int) {
+        if (handle == 0L) return
+        val current = NativeBridge.nativeGetObjectScript(handle, objectId)
+        val input = EditText(this).apply {
+            setText(current)
+            setSelection(text.length)
+            inputType = InputType.TYPE_CLASS_TEXT or
+                InputType.TYPE_TEXT_FLAG_MULTI_LINE or
+                InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
+            gravity = Gravity.TOP or Gravity.START
+            minLines = 6
+            setHorizontallyScrolling(false)
+        }
+        val dialog = AlertDialog.Builder(this)
+            .setTitle("Script · object #$objectId")
+            .setView(input)
+            .setPositiveButton("Save", null) // overridden below to validate before dismiss
+            .setNegativeButton(android.R.string.cancel, null)
+            .create()
+        dialog.setOnShowListener {
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                val src = input.text.toString()
+                val err = NativeBridge.nativeCheckScript(src)
+                if (err.isNotEmpty()) {
+                    // Keep the dialog open so the user can fix the source.
+                    Toast.makeText(this, "Parse error: $err", Toast.LENGTH_LONG).show()
+                } else {
+                    NativeBridge.nativeSetObjectScript(handle, objectId, src)
+                    cardView.refresh()
+                    dialog.dismiss()
+                }
+            }
+        }
+        dialog.show()
     }
 
     private fun commitEdit() {

@@ -151,6 +151,73 @@ impl Session {
         false
     }
 
+    /// Topmost object id at a card-space point, regardless of lock state. Unlike
+    /// `dispatch_touch` this only *selects* (it runs nothing); the host uses it in edit
+    /// mode to pick which object's script to edit. Reuses the same hit-test traversal.
+    pub fn object_at(&self, x: f32, y: f32) -> Option<u32> {
+        self.hit_test(x, y).map(|h| match h {
+            Hit::Button(id) | Hit::EditableField(id) | Hit::LockedField(id) => id,
+        })
+    }
+
+    /// Read an object's HyperTalk source by id. Searches the card layer then the
+    /// background layer; buttons before fields. Returns None if no object has that id.
+    pub fn get_object_script(&self, id: u32) -> Option<String> {
+        let card = &self.stack.cards[self.card_index];
+        if let Some(b) = card.buttons.iter().find(|b| b.id == id) {
+            return Some(b.script.clone());
+        }
+        if let Some(f) = card.fields.iter().find(|f| f.id == id) {
+            return Some(f.script.clone());
+        }
+        if let Some(bg) = card.background_id.and_then(|i| self.stack.background(i)) {
+            if let Some(b) = bg.buttons.iter().find(|b| b.id == id) {
+                return Some(b.script.clone());
+            }
+            if let Some(f) = bg.fields.iter().find(|f| f.id == id) {
+                return Some(f.script.clone());
+            }
+        }
+        None
+    }
+
+    /// Write an object's HyperTalk source by id (same search order as `get_object_script`).
+    /// Returns true if an object was updated. Validate with `check_script` first if you
+    /// want to reject unparseable source.
+    pub fn set_object_script(&mut self, id: u32, src: &str) -> bool {
+        let bg_id = {
+            let card = &mut self.stack.cards[self.card_index];
+            if let Some(b) = card.buttons.iter_mut().find(|b| b.id == id) {
+                b.script = src.to_string();
+                return true;
+            }
+            if let Some(f) = card.fields.iter_mut().find(|f| f.id == id) {
+                f.script = src.to_string();
+                return true;
+            }
+            card.background_id
+        };
+        if let Some(bg_id) = bg_id
+            && let Some(bg) = self.stack.backgrounds.iter_mut().find(|b| b.id == bg_id)
+        {
+            if let Some(b) = bg.buttons.iter_mut().find(|b| b.id == id) {
+                b.script = src.to_string();
+                return true;
+            }
+            if let Some(f) = bg.fields.iter_mut().find(|f| f.id == id) {
+                f.script = src.to_string();
+                return true;
+            }
+        }
+        false
+    }
+
+    /// Validate HyperTalk source without running it: `Some(error)` if it fails to parse,
+    /// else `None`. Lets the host reject bad scripts before saving.
+    pub fn check_script(src: &str) -> Option<String> {
+        crate::script::parse_script(src).err()
+    }
+
     /// Fire the `openCard` handler for the current card (card then stack). Call after
     /// load and after navigation.
     pub fn open_current_card(&mut self) -> DispatchResult {

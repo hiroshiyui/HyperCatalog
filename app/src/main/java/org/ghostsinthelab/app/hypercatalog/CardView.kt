@@ -46,10 +46,16 @@ class CardView @JvmOverloads constructor(
 
         /** Commit any in-progress field edit before this tap is handled. */
         fun commitPendingEdit()
+
+        /** Edit-mode tap: the user picked object [objectId] to edit its script. */
+        fun onEditScript(objectId: Int)
     }
 
     var handle: Long = 0L
     var callbacks: Callbacks? = null
+
+    /** When true, a tap selects the object under it for script editing instead of running it. */
+    var editMode: Boolean = false
 
     private var cardW = 360f
     private var cardH = 540f
@@ -184,6 +190,14 @@ class CardView @JvmOverloads constructor(
         // view → card coordinates
         val cx = (event.x - offsetX) / scale
         val cy = (event.y - offsetY) / scale
+
+        // Edit mode: select the object under the tap and edit its script — don't run it.
+        if (editMode) {
+            val id = NativeBridge.nativeObjectAt(handle, cx, cy)
+            if (id >= 0) callbacks?.onEditScript(id)
+            return true
+        }
+
         val result = JSONObject(NativeBridge.nativeDispatchTouch(handle, cx, cy, "up"))
 
         val error = if (result.isNull("error")) null else result.optString("error").ifEmpty { null }

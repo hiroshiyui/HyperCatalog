@@ -112,6 +112,73 @@ pub extern "system" fn Java_org_ghostsinthelab_app_hypercatalog_NativeBridge_nat
     }
 }
 
+/// Topmost object id at a card-space point, for edit-mode selection. Returns the id, or
+/// -1 if no object is hit (or the handle is dead).
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_org_ghostsinthelab_app_hypercatalog_NativeBridge_nativeObjectAt(
+    _env: JNIEnv,
+    _class: JClass,
+    handle: jlong,
+    x: jfloat,
+    y: jfloat,
+) -> jint {
+    let Some(s) = (unsafe { session(handle) }) else {
+        return -1;
+    };
+    s.object_at(x, y).map(|id| id as jint).unwrap_or(-1)
+}
+
+/// Read an object's HyperTalk source by id. Returns the source, or empty string if the
+/// object doesn't exist (or the handle is dead).
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_org_ghostsinthelab_app_hypercatalog_NativeBridge_nativeGetObjectScript(
+    mut env: JNIEnv,
+    _class: JClass,
+    handle: jlong,
+    object_id: jint,
+) -> jstring {
+    let Some(s) = (unsafe { session(handle) }) else {
+        return java_string(&mut env, "");
+    };
+    java_string(
+        &mut env,
+        &s.get_object_script(object_id as u32).unwrap_or_default(),
+    )
+}
+
+/// Write an object's HyperTalk source by id. Returns true if an object was updated. The
+/// host should validate with `nativeCheckScript` first.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_org_ghostsinthelab_app_hypercatalog_NativeBridge_nativeSetObjectScript(
+    mut env: JNIEnv,
+    _class: JClass,
+    handle: jlong,
+    object_id: jint,
+    src: JString,
+) -> jboolean {
+    let src = rust_string(&mut env, &src);
+    let Some(s) = (unsafe { session(handle) }) else {
+        return JNI_FALSE;
+    };
+    if s.set_object_script(object_id as u32, &src) {
+        JNI_TRUE
+    } else {
+        JNI_FALSE
+    }
+}
+
+/// Validate HyperTalk source without running it. Returns the parser error message, or an
+/// empty string if the source parses cleanly. Does not touch the session.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_org_ghostsinthelab_app_hypercatalog_NativeBridge_nativeCheckScript(
+    mut env: JNIEnv,
+    _class: JClass,
+    src: JString,
+) -> jstring {
+    let src = rust_string(&mut env, &src);
+    java_string(&mut env, &Session::check_script(&src).unwrap_or_default())
+}
+
 /// Serialize the current stack to JSON (for saving).
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_org_ghostsinthelab_app_hypercatalog_NativeBridge_nativeToJson(

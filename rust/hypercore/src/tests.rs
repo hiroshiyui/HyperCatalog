@@ -108,6 +108,57 @@ fn host_set_field_text_persists() {
 }
 
 #[test]
+fn object_at_returns_topmost_id() {
+    let s = Session::load_from_json(&sample_json()).unwrap();
+    assert_eq!(s.object_at(20.0, 120.0), Some(20)); // "Inc" button
+    assert_eq!(s.object_at(20.0, 25.0), Some(10)); // "counter" field
+    assert_eq!(s.object_at(300.0, 300.0), None); // empty space
+}
+
+#[test]
+fn get_and_set_object_script() {
+    let mut s = Session::load_from_json(&sample_json()).unwrap();
+    assert!(
+        s.get_object_script(20)
+            .unwrap()
+            .contains("add 1 to field")
+    );
+    assert!(s.get_object_script(999).is_none());
+
+    // Rewrite "Inc" to subtract; lazy per-dispatch parsing means the next tap runs it.
+    assert!(s.set_object_script(
+        20,
+        "on mouseUp\n  subtract 1 from field \"counter\"\nend mouseUp"
+    ));
+    s.set_field_text(10, "5");
+    s.dispatch_touch(20.0, 120.0, "up");
+    let counter = s
+        .render_current_card()
+        .items
+        .into_iter()
+        .find(|d| d.id == 10)
+        .unwrap();
+    assert_eq!(counter.text, "4");
+
+    assert!(!s.set_object_script(999, "on mouseUp\nend mouseUp"));
+}
+
+#[test]
+fn set_object_script_persists_through_json() {
+    let mut s = Session::load_from_json(&sample_json()).unwrap();
+    assert!(s.set_object_script(21, "on mouseUp\n  beep\nend mouseUp"));
+    let s2 = Session::load_from_json(&s.to_json()).unwrap();
+    assert!(s2.get_object_script(21).unwrap().contains("beep"));
+}
+
+#[test]
+fn check_script_flags_parse_errors() {
+    assert!(Session::check_script("on mouseUp\n  beep\nend mouseUp").is_none());
+    // `if` with no `then` is a parse error.
+    assert!(Session::check_script("on mouseUp\n  if 1 < 2\n    beep\nend mouseUp").is_some());
+}
+
+#[test]
 fn answer_produces_host_effect() {
     let json = r#"{
       "name": "A", "cards": [
