@@ -1,8 +1,13 @@
 # HyperCatalog Rust core
 
 A platform-agnostic HyperCard-like engine: a document model, a HyperTalk interpreter
-(written directly in Rust — no mRuby/C), JSON persistence, and a small host-facing
+(written directly in Rust — no mRuby/C), stack persistence, and a small host-facing
 `Session` facade. Android is the reference host; the core has **no** Android dependencies.
+
+Stack files are authored in **YAML** for readability — multi-line scripts/paragraphs as block
+scalars (`Session::load_from_yaml`; `.yaml`/`.yml`), see
+[`doc/adr/0011-yaml-stack-files.md`](../doc/adr/0011-yaml-stack-files.md). JSON loading is retained
+for now (`load_from_json`).
 
 ## Crates
 

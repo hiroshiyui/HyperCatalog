@@ -25,8 +25,9 @@ Android (Kotlin host, thin)                    rust/ workspace
   - `model.rs` — `Stack → Card/Background → Button/Field` (serde, JSON-persistable).
   - `script/` — `lexer` → `parser` → `ast` → `interp` (the `Runtime` that executes handlers
     against a `&mut Stack`), plus `value` (HyperTalk's string-centric `Value`).
-  - `session.rs` — the **only** surface hosts call: `Session::load_from_json`,
-    `render_current_card` (→ `RenderList` of draw primitives), `dispatch_touch` (hit-tests,
+  - `session.rs` — the **only** surface hosts call: `Session::load_from_json` /
+    `load_from_yaml` (YAML is the readable authoring format, ADR-0011; same model, alternate
+    parser), `render_current_card` (→ `RenderList` of draw primitives), `dispatch_touch` (hit-tests,
     runs scripts, returns `DispatchResult` with `host_cmds`/`focus_field`/`card_changed`),
     `dispatch_gesture` (post-WIMP touchscreen gestures — `tap`/`doubleTap`/`longPress`/`swipe*`
     — sent as messages that bubble the same path; never focuses a field), `set_field_text`,
@@ -42,9 +43,12 @@ Android (Kotlin host, thin)                    rust/ workspace
 - **Rendering**: the core emits card-coordinate draw primitives; `CardView` letterbox-scales
   them onto a Canvas and maps touches back. Redraws are event-driven (taps), not per-frame —
   hence JSON-string marshalling is fine.
-- **Persistence**: `MainActivity.onPause` writes `Session.to_json()` to `filesDir/stack.json`;
-  `onCreate` loads that if present, else `assets/sample.json`. The current card index is **not**
-  persisted (reopens at card 1).
+- **Persistence**: stacks live as bundled assets (`assets/*.yaml` for authoring — readable block
+  scalars — or `*.json`; default `productivity`); the host keeps a per-stack working copy as
+  **JSON** in `filesDir/stacks/<key>.json` (saved on pause/switch) and remembers the last-used
+  stack in `filesDir/last_stack`. **YAML is the authoring/source format only**; runtime saves and
+  the JNI bridge stay JSON (ADR-0011 / ADR-0002). The current card index is **not** persisted
+  (reopens at card 1).
 
 When changing the cross-language contract, keep three things in sync: the serde structs in
 `hypercore::session`, the JNI signatures in `hyperffi/src/android.rs`, and the JSON parsing in

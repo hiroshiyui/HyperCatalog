@@ -9,3 +9,4 @@ description = "Platform-agnostic HyperCard-like document model and HyperTalk int
 [dependencies]
 serde = { workspace = true }
 serde_json = { workspace = true }
+yaml_serde = "0.10.4"

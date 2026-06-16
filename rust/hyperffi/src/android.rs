@@ -46,6 +46,20 @@ pub extern "system" fn Java_org_ghostsinthelab_app_hypercatalog_NativeBridge_nat
     }
 }
 
+/// Load a stack from YAML (the readable authoring format). Returns a handle, or 0 on error.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_org_ghostsinthelab_app_hypercatalog_NativeBridge_nativeLoadYaml(
+    mut env: JNIEnv,
+    _class: JClass,
+    yaml: JString,
+) -> jlong {
+    let yaml = rust_string(&mut env, &yaml);
+    match Session::load_from_yaml(&yaml) {
+        Ok(s) => Box::into_raw(Box::new(s)) as jlong,
+        Err(_) => 0,
+    }
+}
+
 /// Fire the current card's `openCard` handler; returns a DispatchResult JSON.
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_org_ghostsinthelab_app_hypercatalog_NativeBridge_nativeOpenCard(

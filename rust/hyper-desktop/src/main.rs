@@ -22,11 +22,18 @@ fn main() {
             std::process::exit(2);
         }
     };
-    let json = std::fs::read_to_string(&path).unwrap_or_else(|e| {
+    let src = std::fs::read_to_string(&path).unwrap_or_else(|e| {
         eprintln!("cannot read {path}: {e}");
         std::process::exit(1);
     });
-    let mut session = Session::load_from_json(&json).unwrap_or_else(|e| {
+    // YAML for the readable authoring format (.yaml/.yml), JSON otherwise. See ADR-0011.
+    let is_yaml = path.ends_with(".yaml") || path.ends_with(".yml");
+    let loaded = if is_yaml {
+        Session::load_from_yaml(&src)
+    } else {
+        Session::load_from_json(&src)
+    };
+    let mut session = loaded.unwrap_or_else(|e| {
         eprintln!("cannot load stack: {e}");
         std::process::exit(1);
     });

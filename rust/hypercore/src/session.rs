@@ -91,6 +91,18 @@ impl Session {
     pub fn load_from_json(json: &str) -> Result<Session, String> {
         let stack: Stack =
             serde_json::from_str(json).map_err(|e| format!("invalid stack JSON: {e}"))?;
+        Session::from_stack(stack)
+    }
+
+    /// Load a stack from YAML — the readable authoring format (ADR-0011). The same model as
+    /// JSON, so this is purely an alternate deserializer; the JNI bridge and saves stay JSON.
+    pub fn load_from_yaml(yaml: &str) -> Result<Session, String> {
+        let stack: Stack =
+            yaml_serde::from_str(yaml).map_err(|e| format!("invalid stack YAML: {e}"))?;
+        Session::from_stack(stack)
+    }
+
+    fn from_stack(stack: Stack) -> Result<Session, String> {
         if stack.cards.is_empty() {
             return Err("stack has no cards".to_string());
         }

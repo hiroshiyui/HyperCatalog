@@ -963,6 +963,56 @@ fn gesture_targets_locked_field_without_focusing() {
     assert_eq!(p["locked"], true);
 }
 
+#[test]
+fn loads_from_yaml_with_block_scalar_script() {
+    // YAML authoring (ADR-0011): the script reads as real indented text via a `|` block scalar,
+    // not a "\n"-escaped JSON string — and it still runs.
+    let yaml = r#"
+name: Y
+cards:
+  - id: 1
+    name: One
+    fields:
+      - id: 5
+        name: out
+        rect: { x: 0, y: 0, w: 50, h: 50 }
+        text: "0"
+        locked: true
+    buttons:
+      - id: 6
+        name: Inc
+        rect: { x: 0, y: 60, w: 50, h: 50 }
+        script: |
+          on mouseUp
+            add 1 to field "out"
+          end mouseUp
+"#;
+    let mut s = Session::load_from_yaml(yaml).unwrap();
+    assert_eq!(s.card_count(), 1);
+    let r = s.dispatch_touch(10.0, 70.0, "up"); // tap "Inc"
+    assert!(r.error.is_none(), "error: {:?}", r.error);
+    assert_eq!(field_text(&s, 5), "1");
+}
+
+#[test]
+fn yaml_and_json_round_trip_to_the_same_model() {
+    // Parity: YAML and JSON deserialize to the same `Stack` (ADR-0011 keeps one model).
+    use crate::model::Stack;
+    let stack: Stack = serde_json::from_str(&sample_json()).unwrap();
+    let yaml = yaml_serde::to_string(&stack).unwrap();
+    let from_yaml: Stack = yaml_serde::from_str(&yaml).unwrap();
+    assert_eq!(stack, from_yaml);
+    // ...and the YAML-loaded model re-serializes to JSON identically.
+    let json = serde_json::to_string(&from_yaml).unwrap();
+    let from_json: Stack = serde_json::from_str(&json).unwrap();
+    assert_eq!(stack, from_json);
+}
+
+#[test]
+fn invalid_yaml_errors_cleanly() {
+    assert!(Session::load_from_yaml("name: [unterminated").is_err());
+}
+
 /// Direct unit tests for the string-centric `Value` coercions.
 mod value_unit {
     use crate::script::value::{Value, fmt_number};

@@ -13,6 +13,9 @@ object NativeBridge {
     /** Load a stack from JSON. Returns a handle, or 0 on error. */
     external fun nativeLoad(json: String): Long
 
+    /** Load a stack from YAML (the readable authoring format). Returns a handle, or 0 on error. */
+    external fun nativeLoadYaml(yaml: String): Long
+
     /** Fire the current card's `openCard` handler. Returns a DispatchResult JSON. */
     external fun nativeOpenCard(handle: Long): String
 
