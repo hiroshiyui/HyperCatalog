@@ -1,5 +1,6 @@
 package org.ghostsinthelab.app.hypercatalog
 
+import android.content.res.Configuration
 import android.graphics.Color
 import android.graphics.RectF
 import android.media.AudioManager
@@ -21,6 +22,7 @@ import android.widget.ScrollView
 import android.widget.Spinner
 import android.widget.TextView
 import android.widget.Toast
+import androidx.activity.addCallback
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
@@ -186,6 +188,16 @@ class MainActivity : AppCompatActivity(), CardView.Callbacks {
         }
 
         loadInitialStack()
+
+        // System back → `on backPressed` (ADR-0019). If a handler consumes it (navigates/returns),
+        // stay; otherwise fall through to the platform default (finish/back-stack).
+        onBackPressedDispatcher.addCallback(this) {
+            if (!fireLifecycle("backPressed")) {
+                isEnabled = false
+                onBackPressedDispatcher.onBackPressed()
+                isEnabled = true
+            }
+        }
     }
 
     // --- render mode (ADR-0008) ---
@@ -645,9 +657,35 @@ class MainActivity : AppCompatActivity(), CardView.Callbacks {
         }
     }
 
+    // --- lifecycle messages (ADR-0019) ---
+
+    /** Fire a lifecycle message into the stack and surface its effects; returns whether a handler
+     *  ran (so the caller can e.g. consume a `backPressed`). */
+    private fun fireLifecycle(message: String): Boolean {
+        val s = stack ?: return false
+        val r = s.dispatchLifecycle(message)
+        val effects = hostEffectsOf(r.hostCmds)
+        if (effects.isNotEmpty() || r.error != null) onEffects(effects, r.error)
+        if (r.cardChanged || r.needsRedraw) {
+            if (nativeMode) bindNativeContent() else cardView.refresh()
+        }
+        return r.handled
+    }
+
+    override fun onResume() {
+        super.onResume()
+        fireLifecycle("resume")
+    }
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        fireLifecycle("rotate") // configChanges in the manifest keeps us from being recreated
+    }
+
     override fun onPause() {
         super.onPause()
         if (editor.visibility == View.VISIBLE) commitEdit()
+        fireLifecycle("suspend")
         saveCurrentStack()
     }
 

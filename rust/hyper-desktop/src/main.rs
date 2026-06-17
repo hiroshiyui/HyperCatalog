@@ -94,6 +94,12 @@ fn main() {
                 }
             }
             "tap" => handle_tap(&mut session, rest),
+            "fire" => {
+                // Fire a lifecycle/custom message down the card→bg→stack path (ADR-0019).
+                let r = session.dispatch_lifecycle(rest);
+                report(&r);
+                dump(&session);
+            }
             other => println!("unknown command: {other}"),
         }
     }
@@ -207,6 +213,6 @@ fn print_node(t: &ViewTree, n: &ViewNode, depth: usize) {
 
 fn help() {
     println!(
-        "commands:\n  dump\n  tree\n  tap <name|id> | tap <x> <y>\n  type <field-id> <text>\n  go next|prev|first|last\n  save [path]\n  quit"
+        "commands:\n  dump\n  tree\n  tap <name|id> | tap <x> <y>\n  type <field-id> <text>\n  fire <message>\n  go next|prev|first|last\n  save [path]\n  quit"
     );
 }

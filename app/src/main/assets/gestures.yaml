@@ -12,6 +12,13 @@ script: |-
   on swipeRight
     go previous card
   end swipeRight
+
+  # Lifecycle (ADR-0019): intercept the system back to go to the previous card instead of
+  # exiting. Defining this handler "consumes" back (handled = true); productivity, with no
+  # handler, keeps the default back behavior.
+  on backPressed
+    go previous card
+  end backPressed
 backgrounds:
 - id: 1
   name: nav

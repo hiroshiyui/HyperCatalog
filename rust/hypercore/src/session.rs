@@ -152,6 +152,9 @@ pub struct DispatchResult {
     pub focus_field: Option<u32>,
     pub host_cmds: Vec<HostEffect>,
     pub error: Option<String>,
+    /// Whether a handler actually matched and ran (ADR-0019); lets the host decide e.g. whether to
+    /// consume a `backPressed` or fall back to the default.
+    pub handled: bool,
 }
 
 impl DispatchResult {
@@ -159,6 +162,7 @@ impl DispatchResult {
         DispatchResult {
             needs_redraw: false,
             card_changed: false,
+            handled: false,
             focus_field: None,
             host_cmds: Vec::new(),
             error: None,
@@ -888,9 +892,13 @@ impl Session {
 
         let mut rt = Runtime::new(&mut self.stack, self.card_index);
         let mut error = None;
+        let mut handled = false;
         for (src, me) in &path {
             match rt.run_handler(src, message, *me, &[]) {
-                Ok(true) => break,
+                Ok(true) => {
+                    handled = true;
+                    break;
+                }
                 Ok(false) => continue,
                 Err(e) => {
                     error = Some(e);
@@ -909,7 +917,18 @@ impl Session {
             focus_field: None,
             host_cmds,
             error,
+            handled,
         }
+    }
+
+    /// Dispatch a **lifecycle message** (ADR-0019): `resume`/`suspend`/`backPressed`/`rotate`, fired
+    /// by the host at Activity-lifecycle transitions. Sent with no object origin, so it bubbles
+    /// card → background → stack (a stack-level `on resume` catches it). `idle` is intentionally
+    /// not used (battery). The host inspects `handled` (e.g. to consume a `backPressed`).
+    pub fn dispatch_lifecycle(&mut self, message: &str) -> DispatchResult {
+        let mut r = self.dispatch_message(None, message);
+        r.needs_redraw = r.needs_redraw || r.card_changed;
+        r
     }
 
     /// Gather (script source, `me`) pairs along the message path. Scripts are cloned so

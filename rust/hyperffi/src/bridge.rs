@@ -200,6 +200,8 @@ pub struct DispatchResult {
     pub focus_field: Option<i32>,
     pub host_cmds: Vec<HostEffect>,
     pub error: Option<String>,
+    /// Whether a handler matched and ran (ADR-0019) — e.g. to consume a `backPressed`.
+    pub handled: bool,
 }
 
 impl From<hypercore::DispatchResult> for DispatchResult {
@@ -210,6 +212,7 @@ impl From<hypercore::DispatchResult> for DispatchResult {
             focus_field: r.focus_field.map(|id| id as i32),
             host_cmds: r.host_cmds.into_iter().map(HostEffect::from).collect(),
             error: r.error,
+            handled: r.handled,
         }
     }
 }
@@ -327,6 +330,16 @@ impl HyperStack {
             .lock()
             .unwrap()
             .dispatch_by_id(id as u32, &message, &args)
+            .into()
+    }
+
+    /// Fire a lifecycle message (ADR-0019) — `resume`/`suspend`/`backPressed`/`rotate` — down the
+    /// card → background → stack path. The host calls this at Activity-lifecycle transitions.
+    pub fn dispatch_lifecycle(&self, message: String) -> DispatchResult {
+        self.inner
+            .lock()
+            .unwrap()
+            .dispatch_lifecycle(&message)
             .into()
     }
 

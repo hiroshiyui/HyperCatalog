@@ -355,6 +355,37 @@ fn the_layout_of_card_getter() {
     assert_eq!(field_text(&s, 11), "column"); // field "b" is id 11
 }
 
+// --- ADR-0019 lifecycle messages ---
+
+#[test]
+fn lifecycle_message_runs_stack_handler() {
+    let yaml = r#"
+name: L
+script: |-
+  on resume
+    put "resumed" into field "out"
+  end resume
+cards:
+  - id: 1
+    name: One
+    fields:
+      - { id: 10, name: out, rect: { x: 0, y: 0, w: 10, h: 10 }, text: "" }
+"#;
+    let mut s = Session::load_from_yaml(yaml).unwrap();
+    let r = s.dispatch_lifecycle("resume");
+    assert!(r.error.is_none());
+    assert!(r.handled);
+    assert_eq!(field_text(&s, 10), "resumed");
+}
+
+#[test]
+fn unhandled_lifecycle_message_reports_not_handled() {
+    let mut s = Session::load_from_json(&sample_json()).unwrap();
+    let r = s.dispatch_lifecycle("backPressed"); // no handler anywhere
+    assert!(r.error.is_none());
+    assert!(!r.handled);
+}
+
 // --- ADR-0018 Material roles + textRole + theme ---
 
 #[test]
