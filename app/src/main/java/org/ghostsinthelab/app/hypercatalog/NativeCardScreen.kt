@@ -238,18 +238,17 @@ private fun RenderNode(
         )
 
         "button" -> {
-            val label = node.prop("title")
             val click = { onResult(stack.dispatch(node.id, "mouseUp", emptyList())) }
             // Material role (ADR-0018) wins; else fall back to the abstract style → role mapping.
             val role = node.prop("role").ifEmpty { styleToRole(node.prop("style")) }
             val pad = CompactButtonPadding
             when (role) {
-                "filled" -> Button(click, modifier, contentPadding = pad) { ButtonLabel(label) }
-                "tonal" -> FilledTonalButton(click, modifier, contentPadding = pad) { ButtonLabel(label) }
-                "elevated" -> ElevatedButton(click, modifier, contentPadding = pad) { ButtonLabel(label) }
-                "text" -> TextButton(click, modifier, contentPadding = pad) { ButtonLabel(label) }
-                "fab" -> ExtendedFloatingActionButton(onClick = click, modifier = modifier) { ButtonLabel(label) }
-                else -> OutlinedButton(click, modifier, contentPadding = pad) { ButtonLabel(label) }
+                "filled" -> Button(click, modifier, contentPadding = pad) { ButtonLabel(node) }
+                "tonal" -> FilledTonalButton(click, modifier, contentPadding = pad) { ButtonLabel(node) }
+                "elevated" -> ElevatedButton(click, modifier, contentPadding = pad) { ButtonLabel(node) }
+                "text" -> TextButton(click, modifier, contentPadding = pad) { ButtonLabel(node) }
+                "fab" -> ExtendedFloatingActionButton(onClick = click, modifier = modifier) { ButtonLabel(node) }
+                else -> OutlinedButton(click, modifier, contentPadding = pad) { ButtonLabel(node) }
             }
         }
 
@@ -257,7 +256,7 @@ private fun RenderNode(
             // A switch toggles in the core (auto-toggle before mouseUp); dispatch and re-read.
             val checked = node.prop("checked") == "true"
             Row(modifier, verticalAlignment = Alignment.CenterVertically) {
-                Text(node.prop("title"), modifier = Modifier.weight(1f))
+                Text(node.prop("title"), style = node.nodeTextStyle(), modifier = Modifier.weight(1f))
                 Switch(
                     checked = checked,
                     onCheckedChange = { onResult(stack.dispatch(node.id, "mouseUp", emptyList())) },
@@ -269,7 +268,7 @@ private fun RenderNode(
             if (node.prop("locked") == "true") {
                 // A locked field is display text (label/title/readout) — render plain Text, not an
                 // input box, honoring its text styling so it matches the Canvas target.
-                Text(text = node.prop("text"), style = node.fieldTextStyle(), modifier = modifier)
+                Text(text = node.prop("text"), style = node.nodeTextStyle(), modifier = modifier)
             } else {
                 // An editable field is a real text input (holds local edit state).
                 var draft by remember(node.id) { mutableStateOf(node.prop("text")) }
@@ -279,7 +278,7 @@ private fun RenderNode(
                         draft = it
                         stack.setFieldText(node.id, it)
                     },
-                    textStyle = node.fieldTextStyle(),
+                    textStyle = node.nodeTextStyle(),
                     modifier = modifier,
                 )
             }
@@ -298,11 +297,17 @@ private fun ViewNode.weight(): Float = prop("weight").toFloatOrNull() ?: 0f
 /** Compact button content padding so labels fit narrow (rect-sized) buttons in `free` mode. */
 private val CompactButtonPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
 
-/** A button label that stays on one line (clipping with an ellipsis) instead of wrapping in a
- *  tight button — e.g. a narrow nav button placed by its rect. */
+/** A button label: honors the node's text styling (size/bold/italic/underline/font) to match the
+ *  Canvas target, and stays on one line (ellipsis) so a narrow rect-sized button doesn't wrap. */
 @Composable
-private fun ButtonLabel(label: String) {
-    Text(label, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
+private fun ButtonLabel(node: ViewNode) {
+    Text(
+        text = node.prop("title"),
+        style = node.nodeTextStyle(),
+        maxLines = 1,
+        softWrap = false,
+        overflow = TextOverflow.Ellipsis,
+    )
 }
 
 /** Map a field's `align` (`left`/`center`/`right`) to a Compose [TextAlign]; unset → start. */
@@ -313,12 +318,12 @@ private fun alignOf(align: String): TextAlign = when (align) {
 }
 
 /**
- * The [TextStyle] for a field, so native fields match the Canvas target: a Material `textRole`
- * type-scale base (or the field's `size` when no role is set), the `font` family, the comma-list
- * `textStyle` (bold/italic/underline), and `align`.
+ * The [TextStyle] for a node's text (field contents or button label), so native matches the Canvas
+ * target: a Material `textRole` type-scale base (or the node's `size` when no role is set), the
+ * `font` family, the comma-list `textStyle` (bold/italic/underline), and `align`.
  */
 @Composable
-private fun ViewNode.fieldTextStyle(): TextStyle {
+private fun ViewNode.nodeTextStyle(): TextStyle {
     val role = prop("textRole")
     var s = typographyFor(role)
     if (role.isEmpty()) {
