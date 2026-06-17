@@ -26,7 +26,6 @@ import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
-import org.json.JSONObject
 import java.io.File
 
 /**
@@ -291,15 +290,9 @@ class MainActivity : AppCompatActivity(), CardView.Callbacks {
         return runCatching { assets.open(asset).bufferedReader().use { it.readText() } }.getOrNull()
     }
 
-    /** A stack's `name` for the picker, falling back to its key. JSON is parsed precisely; YAML
-     *  (or anything else) is scanned for a top-level `name:` line. */
-    private fun stackDisplayName(key: String): String {
-        val content = stackContentFor(key) ?: return key
-        runCatching { JSONObject(content).optString("name") }.getOrNull()
-            ?.takeIf { it.isNotEmpty() }?.let { return it }
-        return Regex("(?m)^name:\\s*(.+)$").find(content)?.groupValues?.get(1)
-            ?.trim()?.trim('"', '\'')?.takeIf { it.isNotEmpty() } ?: key
-    }
+    /** A stack's `name` for the picker, falling back to its key (see [stackNameFrom]). */
+    private fun stackDisplayName(key: String): String =
+        stackContentFor(key)?.let { stackNameFrom(it, key) } ?: key
 
     /** One-time migration: the old single `stack.json` becomes the default stack's copy. */
     private fun migrateLegacySavedStack() {

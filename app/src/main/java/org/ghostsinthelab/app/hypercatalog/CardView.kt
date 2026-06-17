@@ -10,7 +10,6 @@ import android.util.AttributeSet
 import android.view.GestureDetector
 import android.view.MotionEvent
 import android.view.View
-import kotlin.math.abs
 
 /** A draw primitive for one card object, in card coordinates. */
 data class DrawItem(
@@ -345,14 +344,7 @@ class CardView @JvmOverloads constructor(
     /** Classify a fling into a swipe message, or null if it's too short to count. */
     private fun flingGesture(e1: MotionEvent?, e2: MotionEvent): String? {
         val down = e1 ?: return null
-        val dx = e2.x - down.x
-        val dy = e2.y - down.y
-        if (abs(dx) < swipeMinPx && abs(dy) < swipeMinPx) return null
-        return if (abs(dx) > abs(dy)) {
-            if (dx > 0) "swipeRight" else "swipeLeft"
-        } else {
-            if (dy > 0) "swipeDown" else "swipeUp"
-        }
+        return swipeDirection(e2.x - down.x, e2.y - down.y, swipeMinPx)
     }
 
     /** Map a view-space gesture point to card coords and dispatch it to the core. */

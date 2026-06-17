@@ -78,8 +78,8 @@ handle guards, `Java_*` symbol parity) no longer apply. The new concerns:
   silent runtime mismatch).
 - Records map snake_case → camelCase in Kotlin; enums with data become sealed classes
   (`is HostEffect.Answer` → `e.text`). `Option<T>` → nullable; `-1` is the "none" sentinel for ids.
-- Object **props** cross as a typed `ObjectProps` record (no JSON). `org.json` survives only in the
-  host's `stackDisplayName`, to read a *legacy-JSON* stack file's `name` for the picker.
+- Object **props** cross as a typed `ObjectProps` record (no JSON). `org.json` is **not used** in
+  the host at all; the picker reads a stack file's `name` via a regex (`HostLogic.stackNameFrom`).
 - Coordinates cross the bridge in **card space**; the host owns the letterbox transform.
 
 ---
