@@ -356,6 +356,46 @@ fn the_layout_of_card_getter() {
 }
 
 #[test]
+fn free_layout_emits_geometry() {
+    // `free` is the absolute escape hatch (ADR-0017): object nodes carry x/y/w/h, ViewTree size.
+    let yaml = r#"
+name: F
+width: 300
+height: 400
+cards:
+  - id: 1
+    name: One
+    buttons:
+      - { id: 20, name: a, rect: { x: 10, y: 20, w: 80, h: 40 }, title: "A" }
+    layout:
+      mode: free
+      children: [20]
+"#;
+    let s = Session::load_from_yaml(yaml).unwrap();
+    let t = s.render_view_tree();
+    assert_eq!(t.layout, "free");
+    assert_eq!(t.width, 300.0);
+    assert_eq!(t.height, 400.0);
+    let a = t.nodes.iter().find(|n| n.id == 20).unwrap();
+    assert_eq!(prop(a, "x"), "10");
+    assert_eq!(prop(a, "y"), "20");
+    assert_eq!(prop(a, "w"), "80");
+    assert_eq!(prop(a, "h"), "40");
+}
+
+#[test]
+fn non_free_layout_still_omits_geometry() {
+    // Geometry is intentional ONLY in free mode; a grouped (non-free) card stays geometry-free.
+    let s = Session::load_from_yaml(&layout_yaml()).unwrap();
+    let t = s.render_view_tree();
+    for n in &t.nodes {
+        for p in &n.props {
+            assert!(!matches!(p.key.as_str(), "x" | "y" | "w" | "h" | "rect"));
+        }
+    }
+}
+
+#[test]
 fn grid_mode_projects_columns() {
     let yaml = r#"
 name: G

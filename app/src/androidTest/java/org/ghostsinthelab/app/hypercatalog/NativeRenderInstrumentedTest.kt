@@ -103,6 +103,37 @@ class NativeRenderInstrumentedTest {
         }
     }
 
+    /** A `free` (absolute) layout (ADR-0017): objects placed by rect; dispatch still works. */
+    private val freeYaml = """
+        name: FreeITest
+        width: 200
+        height: 200
+        cards:
+          - id: 1
+            name: One
+            fields:
+              - { id: 10, name: out, rect: { x: 10, y: 10, w: 180, h: 30 }, text: "x", locked: true }
+            buttons:
+              - { id: 20, name: a, rect: { x: 10, y: 60, w: 180, h: 30 }, title: "Go",
+                  script: "on mouseUp\n  put \"done\" into field \"out\"\nend mouseUp" }
+            layout:
+              mode: free
+              children: [10, 20]
+    """.trimIndent()
+
+    @Test
+    fun free_layout_renders_and_dispatches() {
+        val stack = uniffi.hyperffi.HyperStack.loadYaml(freeYaml)
+        try {
+            compose.setContent { MaterialTheme { NativeCardScreen(stack) { _, _ -> } } }
+            compose.onNodeWithText("x").assertIsDisplayed()
+            compose.onNodeWithText("Go").performClick()
+            compose.onNodeWithText("done").assertIsDisplayed()
+        } finally {
+            stack.destroy()
+        }
+    }
+
     /** A grid layout (ADR-0016): 4 buttons in a 2-column grid; each still dispatches by id. */
     private val gridYaml = """
         name: GridITest

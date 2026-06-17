@@ -1,11 +1,14 @@
 package org.ghostsinthelab.app.hypercatalog
 
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
@@ -99,6 +102,25 @@ private fun Container(
                 // Horizontal flex: weighted cells share width; unweighted wrap to content.
                 val cell = if (w > 0f) Modifier.weight(w) else Modifier
                 key(tree.cardIndex, cid) { RenderNode(node, tree, stack, onResult, cell) }
+            }
+        }
+
+        "free" -> {
+            // Absolute placement (ADR-0017): scale card units → dp to fit, place each by its rect.
+            BoxWithConstraints(base.fillMaxSize()) {
+                val cardW = tree.width.coerceAtLeast(1f)
+                val cardH = tree.height.coerceAtLeast(1f)
+                val scale = minOf(maxWidth.value / cardW, maxHeight.value / cardH)
+                for (cid in childIds) {
+                    val node = tree.nodes.firstOrNull { it.id == cid } ?: continue
+                    fun px(k: String) = (node.prop(k).toFloatOrNull() ?: 0f) * scale
+                    key(tree.cardIndex, cid) {
+                        RenderNode(
+                            node, tree, stack, onResult,
+                            Modifier.offset(px("x").dp, px("y").dp).size(px("w").dp, px("h").dp),
+                        )
+                    }
+                }
             }
         }
 

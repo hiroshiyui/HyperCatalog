@@ -120,6 +120,9 @@ pub struct ViewTree {
     pub layout: String,
     pub padding: f32,
     pub columns: i32,
+    /// Card size in card units, for `layout == "free"` absolute placement (ADR-0017).
+    pub width: f32,
+    pub height: f32,
     pub root_ids: Vec<i32>,
     pub nodes: Vec<ViewNode>,
 }
@@ -154,6 +157,8 @@ impl From<hypercore::ViewTree> for ViewTree {
             layout: t.layout,
             padding: t.padding,
             columns: t.columns as i32,
+            width: t.width,
+            height: t.height,
             root_ids: t.root_ids.into_iter().map(|i| i as i32).collect(),
             nodes: t.nodes.into_iter().map(ViewNode::from).collect(),
         }

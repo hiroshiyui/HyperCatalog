@@ -71,6 +71,9 @@ pub struct ViewTree {
     pub padding: f32,
     /// Columns per row when `layout == "grid"` (ADR-0016); 0 otherwise.
     pub columns: u32,
+    /// Card size in card units, for `layout == "free"` absolute placement (ADR-0017); 0 otherwise.
+    pub width: f32,
+    pub height: f32,
     /// Top-level node ids, in render (z) order.
     pub root_ids: Vec<u32>,
     pub nodes: Vec<ViewNode>,
@@ -247,9 +250,18 @@ impl Session {
         let (layout, padding, columns, root_ids) = if let Some(root) = &card.layout {
             // Layout overlay (ADR-0014): walk the group tree, referencing objects by id. Group
             // nodes get synthetic ids above any object id, so they never collide or dispatch.
+            // `free` mode (ADR-0017) emits absolute geometry on each object node so the host can
+            // place them like the Canvas player.
+            let geometry = root.mode.eq_ignore_ascii_case("free");
             let mut next_group_id = max_object_id(card, bg) + 1;
-            let root_ids =
-                project_children(card, bg, &root.children, &mut next_group_id, &mut nodes);
+            let root_ids = project_children(
+                card,
+                bg,
+                &root.children,
+                &mut next_group_id,
+                &mut nodes,
+                geometry,
+            );
             (root.mode.clone(), root.padding, root.columns, root_ids)
         } else {
             // Legacy flat fallback (slice 1): all objects, background under card, as a column.
@@ -279,6 +291,8 @@ impl Session {
             layout,
             padding,
             columns,
+            width: self.stack.width,
+            height: self.stack.height,
             root_ids,
             nodes,
         }
@@ -1228,42 +1242,48 @@ fn object_node(
     card: &crate::model::Card,
     bg: Option<&crate::model::Background>,
     id: u32,
+    geometry: bool,
 ) -> Option<ViewNode> {
-    let mut node = if let Some(f) = card.fields.iter().find(|f| f.id == id) {
-        field_node(f)
-    } else if let Some(b) = card.buttons.iter().find(|b| b.id == id) {
-        button_node(b)
-    } else if let Some(bg) = bg {
-        if let Some(f) = bg.fields.iter().find(|f| f.id == id) {
-            field_node(f)
-        } else if let Some(b) = bg.buttons.iter().find(|b| b.id == id) {
-            button_node(b)
-        } else {
-            return None;
-        }
-    } else {
-        return None;
-    };
-    let weight = card
+    // Find the object once, capturing its node, weight, and rect (for free-mode geometry).
+    let found = card
         .fields
         .iter()
         .find(|f| f.id == id)
-        .map(|f| f.weight)
-        .or_else(|| card.buttons.iter().find(|b| b.id == id).map(|b| b.weight))
+        .map(|f| (field_node(f), f.weight, f.rect))
+        .or_else(|| {
+            card.buttons
+                .iter()
+                .find(|b| b.id == id)
+                .map(|b| (button_node(b), b.weight, b.rect))
+        })
         .or_else(|| {
             bg.and_then(|bg| {
                 bg.fields
                     .iter()
                     .find(|f| f.id == id)
-                    .map(|f| f.weight)
-                    .or_else(|| bg.buttons.iter().find(|b| b.id == id).map(|b| b.weight))
+                    .map(|f| (field_node(f), f.weight, f.rect))
+                    .or_else(|| {
+                        bg.buttons
+                            .iter()
+                            .find(|b| b.id == id)
+                            .map(|b| (button_node(b), b.weight, b.rect))
+                    })
             })
-        })
-        .unwrap_or(0.0);
+        });
+    let (mut node, weight, rect) = found?;
     node.props.push(Prop {
         key: "weight".to_string(),
         value: weight.to_string(),
     });
+    if geometry {
+        // `free` layout (ADR-0017): the host places the object by its authored card-unit rect.
+        for (k, val) in [("x", rect.x), ("y", rect.y), ("w", rect.w), ("h", rect.h)] {
+            node.props.push(Prop {
+                key: k.to_string(),
+                value: val.to_string(),
+            });
+        }
+    }
     Some(node)
 }
 
@@ -1276,13 +1296,14 @@ fn project_children(
     children: &[crate::model::LayoutChild],
     next_group_id: &mut u32,
     nodes: &mut Vec<ViewNode>,
+    geometry: bool,
 ) -> Vec<u32> {
     use crate::model::LayoutChild;
     let mut ids = Vec::new();
     for child in children {
         match child {
             LayoutChild::Object(id) => {
-                if let Some(node) = object_node(card, bg, *id) {
+                if let Some(node) = object_node(card, bg, *id, geometry) {
                     ids.push(node.id);
                     nodes.push(node);
                 }
@@ -1290,7 +1311,8 @@ fn project_children(
             LayoutChild::Group(g) => {
                 let gid = *next_group_id;
                 *next_group_id += 1;
-                let child_ids = project_children(card, bg, &g.children, next_group_id, nodes);
+                let child_ids =
+                    project_children(card, bg, &g.children, next_group_id, nodes, geometry);
                 nodes.push(ViewNode {
                     id: gid,
                     kind: "group".to_string(),
