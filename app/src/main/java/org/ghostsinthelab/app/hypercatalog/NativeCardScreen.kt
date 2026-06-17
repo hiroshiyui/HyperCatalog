@@ -11,17 +11,26 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import android.graphics.BitmapFactory
 import android.os.Build
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.ElevatedButton
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -32,6 +41,7 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -39,6 +49,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
@@ -224,6 +236,7 @@ private fun RenderNode(
     modifier: Modifier,
 ) {
     if (node.prop("visible") == "false") return
+    val context = LocalContext.current
 
     when (node.kind) {
         "group" -> Container(
@@ -252,17 +265,79 @@ private fun RenderNode(
             }
         }
 
+        // Boolean controls (ADR-0015/0021): the core auto-toggles `checked` before mouseUp, so we
+        // just dispatch and re-read. Switch trails its label; checkbox/radio lead (Material idiom).
         "switch" -> {
-            // A switch toggles in the core (auto-toggle before mouseUp); dispatch and re-read.
-            val checked = node.prop("checked") == "true"
+            val toggle = { onResult(stack.dispatch(node.id, "mouseUp", emptyList())) }
             Row(modifier, verticalAlignment = Alignment.CenterVertically) {
                 Text(node.prop("title"), style = node.nodeTextStyle(), modifier = Modifier.weight(1f))
-                Switch(
-                    checked = checked,
-                    onCheckedChange = { onResult(stack.dispatch(node.id, "mouseUp", emptyList())) },
+                Switch(checked = node.prop("checked") == "true", onCheckedChange = { toggle() })
+            }
+        }
+
+        "checkbox" -> {
+            val toggle = { onResult(stack.dispatch(node.id, "mouseUp", emptyList())) }
+            Row(modifier, verticalAlignment = Alignment.CenterVertically) {
+                Checkbox(checked = node.prop("checked") == "true", onCheckedChange = { toggle() })
+                Text(node.prop("title"), style = node.nodeTextStyle(), modifier = Modifier.weight(1f))
+            }
+        }
+
+        "radio" -> {
+            val toggle = { onResult(stack.dispatch(node.id, "mouseUp", emptyList())) }
+            Row(modifier, verticalAlignment = Alignment.CenterVertically) {
+                RadioButton(selected = node.prop("checked") == "true", onClick = toggle)
+                Text(node.prop("title"), style = node.nodeTextStyle(), modifier = Modifier.weight(1f))
+            }
+        }
+
+        // Numeric controls (ADR-0021). Slider pushes its value to the core during the drag and
+        // dispatches mouseUp on release (the field-edit commit pattern); progress is read-only.
+        "slider" -> {
+            var v by remember(node.id) { mutableFloatStateOf(node.prop("value").toFloatOrNull() ?: 0f) }
+            Column(modifier) {
+                node.prop("title").takeIf { it.isNotEmpty() }
+                    ?.let { Text(it, style = node.nodeTextStyle()) }
+                Slider(
+                    value = v,
+                    onValueChange = { v = it; stack.setValue(node.id, it) },
+                    onValueChangeFinished = { onResult(stack.dispatch(node.id, "mouseUp", emptyList())) },
                 )
             }
         }
+
+        "progress" -> {
+            val p = (node.prop("value").toFloatOrNull() ?: 0f).coerceIn(0f, 1f)
+            Column(modifier) {
+                node.prop("title").takeIf { it.isNotEmpty() }
+                    ?.let { Text(it, style = node.nodeTextStyle()) }
+                LinearProgressIndicator(progress = { p }, modifier = Modifier.fillMaxWidth())
+            }
+        }
+
+        // Content controls (ADR-0021). Image loads a bundled asset by name (remote URLs are Phase
+        // 10); chip is a Material filter/assist chip; divider is a thin rule.
+        "image" -> {
+            val bitmap = remember(node.prop("source")) { assetImage(context, node.prop("source")) }
+            if (bitmap != null) {
+                Image(bitmap = bitmap, contentDescription = node.prop("title"), modifier = modifier)
+            } else {
+                Text("[image: ${node.prop("source")}]", style = node.nodeTextStyle(), modifier = modifier)
+            }
+        }
+
+        "chip" -> {
+            val click = { onResult(stack.dispatch(node.id, "mouseUp", emptyList())) }
+            val checked = node.prop("checked")
+            if (checked.isNotEmpty()) {
+                FilterChip(selected = checked == "true", onClick = click,
+                    label = { Text(node.prop("title")) }, modifier = modifier)
+            } else {
+                AssistChip(onClick = click, label = { Text(node.prop("title")) }, modifier = modifier)
+            }
+        }
+
+        "divider" -> HorizontalDivider(modifier)
 
         "field" -> {
             if (node.prop("locked") == "true") {
@@ -288,6 +363,15 @@ private fun RenderNode(
             // Unknown kind → graceful no-op (degrade, never crash — ADR-0008 guardrail).
         }
     }
+}
+
+/** Decode a bundled asset image by file name (ADR-0021 `image` control), or null if absent/bad.
+ *  Local assets only for now; remote URLs are Phase 10. */
+private fun assetImage(context: android.content.Context, name: String): ImageBitmap? {
+    if (name.isEmpty()) return null
+    return runCatching {
+        context.assets.open(name).use { BitmapFactory.decodeStream(it) }?.asImageBitmap()
+    }.getOrNull()
 }
 
 private fun ViewNode.prop(key: String): String = props.firstOrNull { it.key == key }?.value ?: ""

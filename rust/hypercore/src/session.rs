@@ -65,8 +65,8 @@ pub struct ViewTree {
     pub card_name: String,
     pub card_index: usize,
     pub card_count: usize,
-    /// Root container arrangement: `"column"`, `"row"`, or `"grid"` (ADR-0014/0016). Always
-    /// `"column"` for a card with no layout overlay (the flat fallback).
+    /// Root container arrangement: `"column"`/`"row"`/`"grid"` (ADR-0014/0016) or `"free"`
+    /// (ADR-0017) — the latter is the default for a card with no layout overlay.
     pub layout: String,
     /// Root container padding (abstract units; the host maps to dp). 0 when no overlay.
     pub padding: f32,
@@ -344,6 +344,28 @@ impl Session {
         false
     }
 
+    /// Set a `slider`/`progress` control's numeric value by id (ADR-0021), the host pushing back a
+    /// dragged slider value (clamped to 0.0..=1.0). Searches the card layer then the background.
+    pub fn set_value(&mut self, id: u32, value: f32) -> bool {
+        let v = value.clamp(0.0, 1.0);
+        let bg_id = {
+            let card = &mut self.stack.cards[self.card_index];
+            if let Some(b) = card.buttons.iter_mut().find(|b| b.id == id) {
+                b.value = Some(v);
+                return true;
+            }
+            card.background_id
+        };
+        if let Some(bg_id) = bg_id
+            && let Some(bg) = self.stack.backgrounds.iter_mut().find(|b| b.id == bg_id)
+            && let Some(b) = bg.buttons.iter_mut().find(|b| b.id == id)
+        {
+            b.value = Some(v);
+            return true;
+        }
+        false
+    }
+
     /// Topmost object id at a card-space point, regardless of lock state. Unlike
     /// `dispatch_touch` this only *selects* (it runs nothing); the host uses it in edit
     /// mode to pick which object's script to edit. Reuses the same hit-test traversal.
@@ -455,6 +477,9 @@ impl Session {
                     title: "Button".to_string(),
                     style: ButtonStyle::Rounded,
                     checked: None,
+                    control: String::new(),
+                    value: None,
+                    source: String::new(),
                     visible: true,
                     script: String::new(),
                     text_font: String::new(),
@@ -1132,12 +1157,19 @@ fn field_cmd(f: &crate::model::Field) -> DrawCmd {
 }
 
 fn button_cmd(b: &crate::model::Button) -> DrawCmd {
-    // A switch (checked: Some) shows its state on the Canvas target with a ☑/☐ prefix; the
-    // native target renders a real Material Switch (ADR-0015).
-    let text = match b.checked {
-        Some(true) => format!("\u{2611} {}", b.label()),
-        Some(false) => format!("\u{2610} {}", b.label()),
-        None => b.label().to_string(),
+    // The Canvas target shows a terse textual stand-in for each control (ADR-0021); the native
+    // target renders the real Material widget.
+    let text = match b.control.as_str() {
+        "image" => format!("[img: {}]", b.source),
+        "divider" => "\u{2500}\u{2500}\u{2500}".to_string(),
+        "progress" | "slider" => {
+            format!("[{:>3.0}%] {}", b.value.unwrap_or(0.0) * 100.0, b.label())
+        }
+        _ => match b.checked {
+            Some(true) => format!("\u{2611} {}", b.label()),
+            Some(false) => format!("\u{2610} {}", b.label()),
+            None => b.label().to_string(),
+        },
     };
     DrawCmd {
         kind: "button".to_string(),
@@ -1217,9 +1249,9 @@ fn field_node(f: &crate::model::Field) -> ViewNode {
     }
 }
 
-/// Build a button [`ViewNode`]. `style` is the existing abstract `ButtonStyle` string
-/// (`rounded`/`rectangle`/`transparent`); the host maps it to a Material widget. A button with
-/// `checked: Some` is a **switch** (kind `"switch"` + a `checked` prop; ADR-0015).
+/// Build a button [`ViewNode`]. The node `kind` is the Material `control` (ADR-0021) when set, else
+/// `"switch"` when `checked` is `Some` (legacy, ADR-0015), else `"button"`; `style` is the abstract
+/// `ButtonStyle`. Toggle/numeric/image controls add `checked`/`value`/`source` props.
 fn button_node(b: &crate::model::Button) -> ViewNode {
     let mut props = vec![
         Prop {
@@ -1261,13 +1293,29 @@ fn button_node(b: &crate::model::Button) -> ViewNode {
             value: checked.to_string(),
         });
     }
+    if let Some(value) = b.value {
+        props.push(Prop {
+            key: "value".to_string(),
+            value: value.to_string(),
+        });
+    }
+    if !b.source.is_empty() {
+        props.push(Prop {
+            key: "source".to_string(),
+            value: b.source.clone(),
+        });
+    }
+    // The control kind names the Material widget; a legacy switch is `checked` with no `control`.
+    let kind = if !b.control.is_empty() {
+        b.control.clone()
+    } else if b.checked.is_some() {
+        "switch".to_string()
+    } else {
+        "button".to_string()
+    };
     ViewNode {
         id: b.id,
-        kind: if b.checked.is_some() {
-            "switch".to_string()
-        } else {
-            "button".to_string()
-        },
+        kind,
         child_ids: Vec::new(),
         props,
     }

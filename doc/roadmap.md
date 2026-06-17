@@ -111,13 +111,13 @@ switch; toggling Native/Classic on its card is a before/after of the whole diale
 The remaining native components and platform facilities are sequenced below as **Phases 6–11**, in
 priority order.
 
-### Phase 6 — Native component palette *(next)*
+### Phase 6 — Native component palette *(done)*
 
-Finish the object taxonomy beyond `switch`, each following the same Design-B recipe (a variant field
-on `Button`, projected to a distinct view-tree `kind`, rendered in Compose, scriptable via an interp
-arm): **`checkbox`** / **`radio`** (boolean, like switch), **`slider`** / **`progress`** (a numeric
-`the value of`), **`image`** (`the source of`, local assets first), **`chip`**, and **`divider`**. A
-`control` discriminator on `Button` names the Material control. Will produce its own ADR.
+The object taxonomy beyond `switch`, each following the same Design-B recipe (a `control`
+discriminator on `Button` + state fields, projected to a distinct view-tree `kind`, rendered in
+Compose, scriptable via interp arms): **`checkbox`** / **`radio`** (boolean), **`slider`** /
+**`progress`** (`the value of`), **`image`** (`the source of`, local assets), **`chip`**, and
+**`divider`** ([ADR-0021](adr/0021-component-palette.md)). Demoed in `assets/layout_demo.yaml`.
 
 ### Phase 7 — Accessibility & theming polish
 
@@ -176,3 +176,4 @@ Rust-native — see [ADR-0001](adr/0001-rust-native-hypertalk.md).
 - [ADR-0018 — Material roles, `textRole`, theme/dynamic color](adr/0018-material-roles-and-theme.md)
 - [ADR-0019 — Activity-lifecycle messages](adr/0019-lifecycle-messages.md)
 - [ADR-0020 — Safe-area insets (constraint solver deferred)](adr/0020-safe-area-insets-and-constraints.md)
+- [ADR-0021 — Native component palette](adr/0021-component-palette.md)

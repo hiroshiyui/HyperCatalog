@@ -353,6 +353,12 @@ impl HyperStack {
             .set_insets(top, right, bottom, left);
     }
 
+    /// Set a `slider`/`progress` control's value (0..=1) by id (ADR-0021) — the host pushes back a
+    /// dragged slider. Mirrors `set_field_text` for the numeric controls.
+    pub fn set_value(&self, id: i32, value: f32) -> bool {
+        self.inner.lock().unwrap().set_value(id as u32, value)
+    }
+
     /// Fire the current card's `openCard` handler (run after navigation).
     pub fn open_card(&self) -> DispatchResult {
         self.inner.lock().unwrap().open_current_card().into()

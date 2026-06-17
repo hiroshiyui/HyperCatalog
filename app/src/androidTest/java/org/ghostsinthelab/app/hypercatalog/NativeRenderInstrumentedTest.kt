@@ -53,6 +53,44 @@ class NativeRenderInstrumentedTest {
         }
     }
 
+    /** The component palette (ADR-0021): checkbox/radio/slider/progress/divider all render, and a
+     *  checkbox auto-toggles + runs its handler (like switch). */
+    private val controlsYaml = """
+        name: ControlsITest
+        width: 100
+        height: 100
+        cards:
+          - id: 1
+            name: One
+            fields:
+              - { id: 10, name: out, rect: { x: 0, y: 0, w: 100, h: 20 }, text: "off", locked: true }
+            buttons:
+              - { id: 20, name: cb, rect: { x: 0, y: 0, w: 100, h: 20 }, title: "Notify", control: checkbox, checked: false,
+                  script: "on mouseUp\n  if the checked of me then put \"on\" into field \"out\" else put \"off\" into field \"out\"\nend mouseUp" }
+              - { id: 21, name: rb, rect: { x: 0, y: 0, w: 100, h: 20 }, title: "Pick", control: radio, checked: false }
+              - { id: 22, name: sl, rect: { x: 0, y: 0, w: 100, h: 20 }, title: "Vol", control: slider, value: 0.3 }
+              - { id: 23, name: pr, rect: { x: 0, y: 0, w: 100, h: 20 }, title: "Lvl", control: progress, value: 0.6 }
+              - { id: 24, name: dv, rect: { x: 0, y: 0, w: 100, h: 2 }, control: divider }
+            layout: { mode: column, children: [10, 20, 21, 22, 23, 24] }
+    """.trimIndent()
+
+    @Test
+    fun component_palette_renders_and_checkbox_toggles() {
+        val stack = uniffi.hyperffi.HyperStack.loadYaml(controlsYaml)
+        try {
+            compose.setContent { MaterialTheme { NativeCardScreen(stack) { _, _ -> } } }
+            // Slider/progress/checkbox labels render; the only toggleable node is the checkbox
+            // (the radio is selectable, not toggleable). Tapping it runs its handler → "on".
+            compose.onNodeWithText("Vol").assertIsDisplayed()
+            compose.onNodeWithText("Lvl").assertIsDisplayed()
+            compose.onNodeWithText("off").assertIsDisplayed()
+            compose.onNode(isToggleable()).performClick()
+            compose.onNodeWithText("on").assertExists()
+        } finally {
+            stack.destroy()
+        }
+    }
+
     /** A card with a layout overlay (ADR-0014): a row group nests a field + button; the button
      *  still dispatches by id through the nesting. */
     private val groupedYaml = """

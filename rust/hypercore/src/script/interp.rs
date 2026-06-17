@@ -476,6 +476,9 @@ impl<'s> Runtime<'s> {
                     "name" | "short name" | "long name" => Value::from_text(b.name.clone()),
                     "title" | "text" | "label" => Value::from_text(b.label().to_string()),
                     "checked" => Value::Bool(b.checked.unwrap_or(false)),
+                    "value" => Value::Number(b.value.unwrap_or(0.0) as f64),
+                    "control" => Value::from_text(b.control.clone()),
+                    "source" => Value::from_text(b.source.clone()),
                     "role" => Value::from_text(b.role.clone()),
                     "visible" => Value::Bool(b.visible),
                     "id" => Value::Number(b.id as f64),
@@ -576,6 +579,13 @@ impl<'s> Runtime<'s> {
                     "title" | "text" | "label" => button.title = v.as_text(),
                     "name" => button.name = v.as_text(),
                     "checked" => button.checked = Some(v.as_bool()),
+                    "value" => {
+                        if let Some(n) = v.as_number() {
+                            button.value = Some(n as f32);
+                        }
+                    }
+                    "control" => button.control = v.as_text(),
+                    "source" => button.source = v.as_text(),
                     "role" => button.role = v.as_text(),
                     "visible" => button.visible = v.as_bool(),
                     "textfont" => button.text_font = v.as_text(),

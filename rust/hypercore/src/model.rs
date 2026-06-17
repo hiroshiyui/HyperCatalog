@@ -38,10 +38,21 @@ pub struct Button {
     pub title: String,
     #[serde(default)]
     pub style: ButtonStyle,
-    /// When `Some`, this button is a **switch** (a Material toggle) holding a boolean; `None` is a
-    /// plain button (ADR-0015). A switch auto-toggles `checked` before its `mouseUp` runs.
+    /// Boolean state for toggle controls — `switch`/`checkbox`/`radio` (ADR-0015/0021). When
+    /// `Some` and `control` is empty, the object is a legacy `switch`. Auto-toggled before `mouseUp`.
     #[serde(default)]
     pub checked: Option<bool>,
+    /// Material **control** kind (ADR-0021): `""` (plain button, or `switch` when `checked` is set)
+    /// | `checkbox` | `radio` | `slider` | `progress` | `image` | `chip` | `divider`. The native
+    /// target renders the named widget; the Canvas target shows a terse textual stand-in.
+    #[serde(default)]
+    pub control: String,
+    /// Numeric state for `slider`/`progress` controls (ADR-0021), in 0.0..=1.0; `None` otherwise.
+    #[serde(default)]
+    pub value: Option<f32>,
+    /// Asset name / URL for an `image` control (ADR-0021); `""` otherwise.
+    #[serde(default)]
+    pub source: String,
     #[serde(default = "default_true")]
     pub visible: bool,
     /// HyperTalk source for this object's handlers.

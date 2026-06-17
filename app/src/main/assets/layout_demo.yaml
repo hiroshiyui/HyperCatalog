@@ -43,6 +43,12 @@ cards:
           script: "on mouseUp\n  put \"tap a tile\" into field \"status\"\nend mouseUp" }
       - { id: 30, name: wifi, rect: { x: 20, y: 380, w: 320, h: 48 }, title: "Wi-Fi", checked: false,
           script: "on mouseUp\n  if the checked of me then put \"Wi-Fi on\" into field \"status\"\n  else put \"Wi-Fi off\" into field \"status\"\nend mouseUp" }
+      - { id: 40, name: notify, rect: { x: 20, y: 430, w: 320, h: 40 }, title: "Notify me", control: checkbox, checked: false,
+          script: "on mouseUp\n  if the checked of me then put \"notify on\" into field \"status\"\n  else put \"notify off\" into field \"status\"\nend mouseUp" }
+      - { id: 60, name: rule, rect: { x: 20, y: 472, w: 320, h: 2 }, control: divider }
+      - { id: 50, name: vol, rect: { x: 20, y: 480, w: 320, h: 40 }, title: "Volume", control: slider, value: 0.4,
+          script: "on mouseUp\n  set the value of button \"meter\" to the value of me\nend mouseUp" }
+      - { id: 51, name: meter, rect: { x: 20, y: 524, w: 320, h: 20 }, title: "Level", control: progress, value: 0.4 }
     layout:
       mode: column
       padding: 16
@@ -51,4 +57,8 @@ cards:
         - { mode: grid, columns: 2, padding: 4, children: [10, 11, 12, 13] }
         - { mode: row, padding: 4, children: [20, 21] }
         - 30
+        - 40
+        - 60
+        - 50
+        - 51
         - 2

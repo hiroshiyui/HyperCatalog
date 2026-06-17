@@ -317,6 +317,93 @@ fn switch_auto_toggles_before_handler() {
     assert_eq!(field_text(&s, 10), "off");
 }
 
+// --- ADR-0021 component palette: control discriminator + checkbox/radio (boolean) ---
+
+#[test]
+fn control_kinds_project_and_legacy_switch_unchanged() {
+    let yaml = r#"
+name: Ctl
+cards:
+  - id: 1
+    name: One
+    buttons:
+      - { id: 20, name: a, rect: { x: 0, y: 0, w: 10, h: 10 }, control: checkbox, checked: true }
+      - { id: 21, name: b, rect: { x: 0, y: 0, w: 10, h: 10 }, control: radio, checked: false }
+      - { id: 22, name: c, rect: { x: 0, y: 0, w: 10, h: 10 }, checked: false }
+      - { id: 23, name: d, rect: { x: 0, y: 0, w: 10, h: 10 }, title: "Go" }
+"#;
+    let s = Session::load_from_yaml(yaml).unwrap();
+    let t = s.render_view_tree();
+    assert_eq!(
+        t.nodes.iter().find(|n| n.id == 20).unwrap().kind,
+        "checkbox"
+    );
+    assert_eq!(
+        prop(t.nodes.iter().find(|n| n.id == 20).unwrap(), "checked"),
+        "true"
+    );
+    assert_eq!(t.nodes.iter().find(|n| n.id == 21).unwrap().kind, "radio");
+    assert_eq!(t.nodes.iter().find(|n| n.id == 22).unwrap().kind, "switch"); // legacy: checked, no control
+    assert_eq!(t.nodes.iter().find(|n| n.id == 23).unwrap().kind, "button");
+}
+
+#[test]
+fn numeric_and_content_controls_project_and_script() {
+    let yaml = r##"
+name: NC
+cards:
+  - id: 1
+    name: One
+    buttons:
+      - { id: 20, name: s, rect: { x: 0, y: 0, w: 10, h: 10 }, control: slider, value: 0.25 }
+      - { id: 21, name: p, rect: { x: 0, y: 0, w: 10, h: 10 }, control: progress, value: 0.5 }
+      - { id: 22, name: i, rect: { x: 0, y: 0, w: 10, h: 10 }, control: image, source: "pic.png" }
+      - { id: 23, name: d, rect: { x: 0, y: 0, w: 10, h: 10 }, control: divider }
+"##;
+    let mut s = Session::load_from_yaml(yaml).unwrap();
+    let t = s.render_view_tree();
+    assert_eq!(t.nodes.iter().find(|n| n.id == 20).unwrap().kind, "slider");
+    assert_eq!(
+        prop(t.nodes.iter().find(|n| n.id == 20).unwrap(), "value"),
+        "0.25"
+    );
+    assert_eq!(
+        t.nodes.iter().find(|n| n.id == 21).unwrap().kind,
+        "progress"
+    );
+    assert_eq!(
+        prop(t.nodes.iter().find(|n| n.id == 22).unwrap(), "source"),
+        "pic.png"
+    );
+    assert_eq!(t.nodes.iter().find(|n| n.id == 23).unwrap().kind, "divider");
+
+    // Host pushes a dragged slider value; clamped to 0..=1.
+    s.set_value(20, 1.5);
+    assert_eq!(prop_node(&s, 20, "value"), "1");
+    // `the value of` is scriptable.
+    s.set_object_script(
+        21,
+        "on mouseUp\n  set the value of button \"p\" to the value of button \"s\"\nend mouseUp",
+    );
+    s.dispatch_by_id(21, "mouseUp", &[]);
+    assert_eq!(prop_node(&s, 21, "value"), "1");
+}
+
+#[test]
+fn checkbox_auto_toggles_like_switch() {
+    let yaml = r#"
+name: Cb
+cards:
+  - id: 1
+    name: One
+    buttons:
+      - { id: 20, name: a, rect: { x: 0, y: 0, w: 10, h: 10 }, control: checkbox, checked: false }
+"#;
+    let mut s = Session::load_from_yaml(yaml).unwrap();
+    s.dispatch_by_id(20, "mouseUp", &[]);
+    assert_eq!(prop_node(&s, 20, "checked"), "true"); // toggle_if_switch keys on `checked`, not control
+}
+
 #[test]
 fn the_checked_of_is_scriptable() {
     let mut s = Session::load_from_yaml(&switch_yaml()).unwrap();
