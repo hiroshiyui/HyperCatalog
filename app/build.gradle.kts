@@ -4,6 +4,9 @@ import org.gradle.process.ExecOperations
 
 plugins {
     alias(libs.plugins.android.application)
+    // Compose compiler plugin, pinned to AGP 9.2.1's built-in Kotlin (2.2.10). Native render
+    // target (ADR-0008); the classic Canvas CardView is unaffected.
+    alias(libs.plugins.compose.compiler)
 }
 
 // Typed task so the generated UniFFI Kotlin can be wired via the AGP Variant API
@@ -77,6 +80,10 @@ android {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
     }
+    buildFeatures {
+        compose = true
+        buildConfig = true
+    }
 }
 
 dependencies {
@@ -86,12 +93,22 @@ dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.datastore.preferences) // host-owned session view state (ADR-0013)
     implementation(libs.material)
+    // Jetpack Compose — native (Material 3) render target (ADR-0008). The BOM aligns versions.
+    implementation(platform(libs.androidx.compose.bom))
+    implementation(libs.androidx.compose.ui)
+    implementation(libs.androidx.compose.material3)
+    implementation(libs.androidx.activity.compose)
+    implementation(libs.androidx.compose.ui.tooling.preview)
+    debugImplementation(libs.androidx.compose.ui.tooling)
     // UniFFI-generated Kotlin bindings load the native library via JNA (ADR-0012). 5.16+ ships a
     // 16 KB-aligned libjnidispatch.so on x86_64 too (5.15 was 4 KB-aligned there). See ADR-0012.
     implementation("net.java.dev.jna:jna:5.17.0@aar")
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(libs.androidx.junit)
+    androidTestImplementation(platform(libs.androidx.compose.bom))
+    androidTestImplementation(libs.androidx.compose.ui.test.junit4)
+    debugImplementation(libs.androidx.compose.ui.test.manifest)
 }
 
 // --- Rust core build -------------------------------------------------------

@@ -24,6 +24,8 @@ import android.widget.Toast
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.ui.platform.ComposeView
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import kotlinx.coroutines.runBlocking
@@ -45,6 +47,10 @@ class MainActivity : AppCompatActivity(), CardView.Callbacks {
     private lateinit var cardView: CardView
     private lateinit var editor: EditText
     private lateinit var editToggle: Button
+    private lateinit var renderToggle: Button
+    private lateinit var composeView: ComposeView
+    /** Render mode: false = classic Canvas [CardView], true = native Compose (ADR-0008). */
+    private var nativeMode = false
     private lateinit var palette: LinearLayout
     private lateinit var propsBtn: Button
     private lateinit var scriptBtn: Button
@@ -149,6 +155,29 @@ class MainActivity : AppCompatActivity(), CardView.Callbacks {
         }
         root.addView(editToggle)
 
+        // Native (Compose) render surface — ADR-0008. Hidden until the render toggle turns it on;
+        // the classic CardView stays the default. Authoring (edit mode) remains Canvas-only.
+        composeView = ComposeView(this).apply {
+            visibility = View.GONE
+            layoutParams = FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT,
+            )
+        }
+        root.addView(composeView)
+
+        // Render-mode toggle: classic Canvas ⇄ native Material (Compose).
+        renderToggle = Button(this).apply {
+            text = "Native"
+            layoutParams = FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                Gravity.TOP or Gravity.START,
+            )
+            setOnClickListener { setNativeMode(!nativeMode) }
+        }
+        root.addView(renderToggle)
+
         setContentView(root)
         ViewCompat.setOnApplyWindowInsetsListener(root) { v, insets ->
             val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
@@ -157,6 +186,39 @@ class MainActivity : AppCompatActivity(), CardView.Callbacks {
         }
 
         loadInitialStack()
+    }
+
+    // --- render mode (ADR-0008) ---
+
+    /** Switch between the classic Canvas [CardView] and the native Compose [NativeCardScreen]. */
+    private fun setNativeMode(on: Boolean) {
+        commitPendingEdit()
+        nativeMode = on
+        if (on && cardView.editMode) { // authoring is Canvas-only; leave edit mode
+            cardView.editMode = false
+            editToggle.text = "Edit"
+            palette.visibility = View.GONE
+        }
+        renderToggle.text = if (on) "Classic" else "Native"
+        editToggle.visibility = if (on) View.GONE else View.VISIBLE
+        cardView.visibility = if (on) View.GONE else View.VISIBLE
+        composeView.visibility = if (on) View.VISIBLE else View.GONE
+        if (on) {
+            bindNativeContent()
+        } else {
+            composeView.setContent {} // release composition; refresh Canvas from current model
+            cardView.refresh()
+        }
+    }
+
+    /** (Re)bind the Compose surface to the current stack — called on toggle and after a load. */
+    private fun bindNativeContent() {
+        val s = stack ?: return
+        composeView.setContent {
+            MaterialTheme {
+                NativeCardScreen(s) { effects, error -> onEffects(effects, error) }
+            }
+        }
     }
 
     // --- stack loading & switching ---
@@ -208,6 +270,7 @@ class MainActivity : AppCompatActivity(), CardView.Callbacks {
         // Restore the last-viewed card (ADR-0013); openCardAt(0) == openCard for a fresh stack.
         loaded.openCardAt(runBlocking { prefs.cardIndex(key) })
         cardView.refresh()
+        if (nativeMode) bindNativeContent() // rebind Compose to the newly-loaded stack
         runBlocking { prefs.setLastStack(key) }
     }
 

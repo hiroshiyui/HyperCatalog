@@ -382,19 +382,10 @@ class CardView @JvmOverloads constructor(
     /** Hand a dispatch's host effects/error to the host to perform. */
     private fun surfaceEffects(result: uniffi.hyperffi.DispatchResult) {
         val error = result.error
-        val effects = result.hostCmds.map { hostEffect(it) }
+        val effects = hostEffectsOf(result.hostCmds)
         if (effects.isNotEmpty() || error != null) {
             callbacks?.onEffects(effects, error)
         }
-    }
-
-    /** Flatten a typed bridge [HostEffect] into the host's `(type, text)` form. */
-    private fun hostEffect(e: uniffi.hyperffi.HostEffect): HostEffect = when (e) {
-        is uniffi.hyperffi.HostEffect.Answer -> HostEffect("answer", e.text)
-        is uniffi.hyperffi.HostEffect.Message -> HostEffect("message", e.text)
-        is uniffi.hyperffi.HostEffect.Beep -> HostEffect("beep", "")
-        is uniffi.hyperffi.HostEffect.GoStack -> HostEffect("gostack", e.name)
-        is uniffi.hyperffi.HostEffect.ShowStacks -> HostEffect("showstacks", "")
     }
 
     /**
