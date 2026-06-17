@@ -4,10 +4,10 @@ A platform-agnostic HyperCard-like engine: a document model, a HyperTalk interpr
 (written directly in Rust — no mRuby/C), stack persistence, and a small host-facing
 `Session` facade. Android is the reference host; the core has **no** Android dependencies.
 
-Stack files are authored in **YAML** for readability — multi-line scripts/paragraphs as block
-scalars (`Session::load_from_yaml`; `.yaml`/`.yml`), see
-[`doc/adr/0011-yaml-stack-files.md`](../doc/adr/0011-yaml-stack-files.md). JSON loading is retained
-for now (`load_from_json`).
+Stacks are **YAML** end to end (ADR-0011) — authored as `.yaml`/`.yml` with multi-line scripts as
+block scalars (`Session::load_from_yaml`), and saved as YAML (`to_yaml`). `load_from_json` is
+retained only to read legacy `.json` stacks. See
+[`doc/adr/0011-yaml-stack-files.md`](../doc/adr/0011-yaml-stack-files.md).
 
 ## Crates
 
@@ -32,8 +32,8 @@ for now (`load_from_json`).
 # Run the core test suite (no emulator needed)
 cargo test -p hypercore
 
-# Drive the sample stack headlessly
-cargo run -p hyper-desktop -- ../app/src/main/assets/sample.json
+# Drive a sample stack headlessly (.yaml or legacy .json)
+cargo run -p hyper-desktop -- ../app/src/main/assets/sample.yaml
 #   commands: dump | tap <name|id> | tap <x> <y> | type <field-id> <text> | go next|prev|first|last | save [path] | quit
 
 # Cross-compile the Android .so into app/src/main/jniLibs (the Gradle build also does this)

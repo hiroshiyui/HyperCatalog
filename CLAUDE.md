@@ -64,7 +64,7 @@ Rust core (no emulator needed — do logic work here first; it's fast and fully 
 cd rust
 cargo test -p hypercore                          # full suite
 cargo test -p hypercore button_handler_mutates_field   # a single test by name
-cargo run -p hyper-desktop -- ../app/src/main/assets/sample.json   # drive a stack headlessly
+cargo run -p hyper-desktop -- ../app/src/main/assets/sample.yaml   # drive a stack headlessly (.yaml/.json)
 cargo fmt --all
 cargo clippy --workspace --all-targets           # kept warning-free
 ```
