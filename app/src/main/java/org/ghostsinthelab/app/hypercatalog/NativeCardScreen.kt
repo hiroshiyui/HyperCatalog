@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import android.os.Build
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.material3.Button
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.ElevatedButton
@@ -39,6 +40,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import uniffi.hyperffi.DispatchResult
 import uniffi.hyperffi.HyperStack
@@ -89,7 +91,8 @@ fun NativeCardScreen(
             tree = tree,
             stack = stack,
             onResult = ::handle,
-            modifier = Modifier.fillMaxSize(),
+            // Top inset clears the floating Classic/Edit toggle row; small side padding for breathing room.
+            modifier = Modifier.fillMaxSize().padding(top = 52.dp, start = 4.dp, end = 4.dp),
             scroll = true,
             columns = tree.columns,
         )
@@ -129,7 +132,11 @@ private fun Container(
 ) {
     val base = modifier.padding(padding.dp)
     when (mode) {
-        "row" -> Row(base) {
+        "row" -> Row(
+            base,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
             for (cid in childIds) {
                 val node = tree.nodes.firstOrNull { it.id == cid } ?: continue
                 val w = node.weight()
@@ -161,9 +168,16 @@ private fun Container(
         "grid" -> {
             // Chunk children into rows of `columns` equal-width cells (ADR-0016) — no LazyGrid.
             val cols = columns.coerceAtLeast(1)
-            Column(if (scroll) base.verticalScroll(rememberScrollState()) else base) {
+            Column(
+                if (scroll) base.verticalScroll(rememberScrollState()) else base,
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
                 childIds.chunked(cols).forEach { rowIds ->
-                    Row(Modifier.fillMaxWidth()) {
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
                         for (cid in rowIds) {
                             val node = tree.nodes.firstOrNull { it.id == cid } ?: continue
                             key(tree.cardIndex, cid) {
@@ -177,7 +191,10 @@ private fun Container(
             }
         }
 
-        else -> Column(if (scroll) base.verticalScroll(rememberScrollState()) else base) {
+        else -> Column(
+            if (scroll) base.verticalScroll(rememberScrollState()) else base,
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
             for (cid in childIds) {
                 val node = tree.nodes.firstOrNull { it.id == cid } ?: continue
                 val w = node.weight()
@@ -241,20 +258,28 @@ private fun RenderNode(
         }
 
         "field" -> {
-            val locked = node.prop("locked") == "true"
-            // Locked fields are script-driven: bind to the freshly-fetched tree value so a mutation
-            // shows on the next rev. Unlocked fields hold local edit state.
-            var draft by remember(node.id) { mutableStateOf(node.prop("text")) }
-            OutlinedTextField(
-                value = if (locked) node.prop("text") else draft,
-                onValueChange = {
-                    draft = it
-                    stack.setFieldText(node.id, it)
-                },
-                readOnly = locked,
-                textStyle = typographyFor(node.prop("textRole")),
-                modifier = modifier,
-            )
+            if (node.prop("locked") == "true") {
+                // A locked field is display text (label/title/readout) — render plain Text, not an
+                // input box. Honor its alignment and Material type role.
+                Text(
+                    text = node.prop("text"),
+                    style = typographyFor(node.prop("textRole")),
+                    textAlign = alignOf(node.prop("align")),
+                    modifier = modifier,
+                )
+            } else {
+                // An editable field is a real text input (holds local edit state).
+                var draft by remember(node.id) { mutableStateOf(node.prop("text")) }
+                OutlinedTextField(
+                    value = draft,
+                    onValueChange = {
+                        draft = it
+                        stack.setFieldText(node.id, it)
+                    },
+                    textStyle = typographyFor(node.prop("textRole")),
+                    modifier = modifier,
+                )
+            }
         }
 
         else -> {
@@ -266,6 +291,13 @@ private fun RenderNode(
 private fun ViewNode.prop(key: String): String = props.firstOrNull { it.key == key }?.value ?: ""
 
 private fun ViewNode.weight(): Float = prop("weight").toFloatOrNull() ?: 0f
+
+/** Map a field's `align` (`left`/`center`/`right`) to a Compose [TextAlign]; unset → start. */
+private fun alignOf(align: String): TextAlign = when (align) {
+    "center" -> TextAlign.Center
+    "right" -> TextAlign.End
+    else -> TextAlign.Start
+}
 
 /** Map a legacy `ButtonStyle` to a Material role, preserving slice-1 appearance when no role is set. */
 private fun styleToRole(style: String): String = when (style) {
