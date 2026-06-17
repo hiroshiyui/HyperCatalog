@@ -330,6 +330,53 @@ fn the_checked_of_is_scriptable() {
 }
 
 #[test]
+fn set_card_layout_via_script() {
+    // `set the layout of this card to "row"` builds a single-level root over all card objects.
+    let mut s = Session::load_from_json(&sample_json()).unwrap();
+    s.set_object_script(
+        20,
+        "on mouseUp\n  set the layout of this card to \"row\"\n  set the padding of this card to 6\nend mouseUp",
+    );
+    s.dispatch_by_id(20, "mouseUp", &[]);
+    let t = s.render_view_tree();
+    assert_eq!(t.layout, "row");
+    assert_eq!(t.padding, 6.0);
+    assert_eq!(t.root_ids, vec![10, 11, 20, 21]); // all card objects, render order
+}
+
+#[test]
+fn the_layout_of_card_getter() {
+    let mut s = Session::load_from_yaml(&layout_yaml()).unwrap();
+    s.set_object_script(
+        20,
+        "on mouseUp\n  put the layout of this card into field \"b\"\nend mouseUp",
+    );
+    s.dispatch_by_id(20, "mouseUp", &[]);
+    assert_eq!(field_text(&s, 11), "column"); // field "b" is id 11
+}
+
+#[test]
+fn grid_mode_projects_columns() {
+    let yaml = r#"
+name: G
+cards:
+  - id: 1
+    name: One
+    buttons:
+      - { id: 20, name: a, rect: { x: 0, y: 0, w: 10, h: 10 }, title: "A" }
+      - { id: 21, name: b, rect: { x: 0, y: 0, w: 10, h: 10 }, title: "B" }
+    layout:
+      mode: grid
+      columns: 2
+      children: [20, 21]
+"#;
+    let s = Session::load_from_yaml(yaml).unwrap();
+    let t = s.render_view_tree();
+    assert_eq!(t.layout, "grid");
+    assert_eq!(t.columns, 2);
+}
+
+#[test]
 fn layout_group_yaml_round_trips() {
     // The externally-tagged LayoutChild enum round-trips through yaml_serde unchanged.
     let stack: crate::model::Stack = yaml_serde::from_str(&layout_yaml()).unwrap();

@@ -144,12 +144,16 @@ pub struct Card {
 /// (within a parent group). The host maps these onto real layout (dp, Compose Row/Column).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct LayoutGroup {
+    /// `"column"`, `"row"`, or `"grid"` (ADR-0016). Grid wraps `children` into rows of `columns`.
     #[serde(default = "default_mode")]
     pub mode: String,
     #[serde(default)]
     pub padding: f32,
     #[serde(default)]
     pub weight: f32,
+    /// Columns per row when `mode == "grid"`; 0/unused otherwise (ADR-0016).
+    #[serde(default)]
+    pub columns: u32,
     #[serde(default)]
     pub children: Vec<LayoutChild>,
 }

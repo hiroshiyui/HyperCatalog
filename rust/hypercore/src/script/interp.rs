@@ -490,6 +490,16 @@ impl<'s> Runtime<'s> {
                 Ok(match prop.as_str() {
                     "name" | "short name" | "long name" => Value::from_text(card.name.clone()),
                     "number" => Value::Number((self.card_index + 1) as f64),
+                    // Card-level layout overlay (ADR-0016): the root container's mode/padding.
+                    "layout" => Value::from_text(
+                        card.layout
+                            .as_ref()
+                            .map(|l| l.mode.clone())
+                            .unwrap_or_default(),
+                    ),
+                    "padding" => {
+                        Value::Number(card.layout.as_ref().map(|l| l.padding).unwrap_or(0.0) as f64)
+                    }
                     _ => Value::Empty,
                 })
             }
@@ -574,19 +584,57 @@ impl<'s> Runtime<'s> {
                     }
                 }
             }
-            ResolvedObj::Card => {
-                let card = &mut self.stack.cards[self.card_index];
-                match prop.as_str() {
-                    "name" => card.name = v.as_text(),
-                    _ => return Err(format!("unknown card property '{prop}'")),
+            ResolvedObj::Card => match prop.as_str() {
+                "name" => self.stack.cards[self.card_index].name = v.as_text(),
+                // `set the layout of this card to "column"|"row"|"grid"` (ADR-0016): build/replace a
+                // single-level root layout over all the card's objects (nested authoring is YAML-only).
+                "layout" => self.set_card_layout(&v.as_text().to_ascii_lowercase()),
+                "padding" => {
+                    if self.stack.cards[self.card_index].layout.is_none() {
+                        self.set_card_layout("column");
+                    }
+                    if let Some(l) = &mut self.stack.cards[self.card_index].layout {
+                        l.padding = v.as_number().unwrap_or(0.0) as f32;
+                    }
                 }
-            }
+                _ => return Err(format!("unknown card property '{prop}'")),
+            },
             ResolvedObj::Stack => match prop.as_str() {
                 "name" => self.stack.name = v.as_text(),
                 _ => return Err(format!("unknown stack property '{prop}'")),
             },
         }
         Ok(())
+    }
+
+    /// Replace the current card's layout overlay with a single-level root group of `mode` over all
+    /// its objects, in render order (background then card). Backs `set the layout of this card`
+    /// (ADR-0016); preserves any existing root padding. A `grid` with no columns defaults to 2.
+    fn set_card_layout(&mut self, mode: &str) {
+        let idx = self.card_index;
+        let mut ids: Vec<u32> = Vec::new();
+        if let Some(bg) = self.stack.cards[idx]
+            .background_id
+            .and_then(|bid| self.stack.backgrounds.iter().find(|b| b.id == bid))
+        {
+            ids.extend(bg.fields.iter().map(|f| f.id));
+            ids.extend(bg.buttons.iter().map(|b| b.id));
+        }
+        let card = &self.stack.cards[idx];
+        ids.extend(card.fields.iter().map(|f| f.id));
+        ids.extend(card.buttons.iter().map(|b| b.id));
+        let padding = card.layout.as_ref().map(|l| l.padding).unwrap_or(0.0);
+        let columns = if mode == "grid" { 2 } else { 0 };
+        self.stack.cards[idx].layout = Some(crate::model::LayoutGroup {
+            mode: mode.to_string(),
+            padding,
+            weight: 0.0,
+            columns,
+            children: ids
+                .into_iter()
+                .map(crate::model::LayoutChild::Object)
+                .collect(),
+        });
     }
 
     /// Resolve an `ObjectRef` (possibly `me`) into a concrete object descriptor we can

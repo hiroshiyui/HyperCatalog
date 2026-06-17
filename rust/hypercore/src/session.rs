@@ -64,11 +64,13 @@ pub struct ViewTree {
     pub card_name: String,
     pub card_index: usize,
     pub card_count: usize,
-    /// Root container arrangement: `"column"` or `"row"` (ADR-0014). Always `"column"` for a
-    /// card with no layout overlay (the flat fallback).
+    /// Root container arrangement: `"column"`, `"row"`, or `"grid"` (ADR-0014/0016). Always
+    /// `"column"` for a card with no layout overlay (the flat fallback).
     pub layout: String,
     /// Root container padding (abstract units; the host maps to dp). 0 when no overlay.
     pub padding: f32,
+    /// Columns per row when `layout == "grid"` (ADR-0016); 0 otherwise.
+    pub columns: u32,
     /// Top-level node ids, in render (z) order.
     pub root_ids: Vec<u32>,
     pub nodes: Vec<ViewNode>,
@@ -242,13 +244,13 @@ impl Session {
         let bg = card.background_id.and_then(|id| self.stack.background(id));
         let mut nodes = Vec::new();
 
-        let (layout, padding, root_ids) = if let Some(root) = &card.layout {
+        let (layout, padding, columns, root_ids) = if let Some(root) = &card.layout {
             // Layout overlay (ADR-0014): walk the group tree, referencing objects by id. Group
             // nodes get synthetic ids above any object id, so they never collide or dispatch.
             let mut next_group_id = max_object_id(card, bg) + 1;
             let root_ids =
                 project_children(card, bg, &root.children, &mut next_group_id, &mut nodes);
-            (root.mode.clone(), root.padding, root_ids)
+            (root.mode.clone(), root.padding, root.columns, root_ids)
         } else {
             // Legacy flat fallback (slice 1): all objects, background under card, as a column.
             let mut root_ids = Vec::new();
@@ -266,7 +268,7 @@ impl Session {
             for b in &card.buttons {
                 push_button_node(&mut nodes, &mut root_ids, b);
             }
-            ("column".to_string(), 0.0, root_ids)
+            ("column".to_string(), 0.0, 0, root_ids)
         };
 
         ViewTree {
@@ -276,6 +278,7 @@ impl Session {
             card_count: self.stack.cards.len(),
             layout,
             padding,
+            columns,
             root_ids,
             nodes,
         }
@@ -1304,6 +1307,10 @@ fn project_children(
                         Prop {
                             key: "weight".to_string(),
                             value: g.weight.to_string(),
+                        },
+                        Prop {
+                            key: "columns".to_string(),
+                            value: g.columns.to_string(),
                         },
                     ],
                 });

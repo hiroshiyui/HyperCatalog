@@ -2,6 +2,7 @@ package org.ghostsinthelab.app.hypercatalog
 
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -72,6 +73,7 @@ fun NativeCardScreen(
         onResult = ::handle,
         modifier = Modifier.fillMaxSize(),
         scroll = true,
+        columns = tree.columns,
     )
 }
 
@@ -86,10 +88,11 @@ private fun Container(
     onResult: (DispatchResult) -> Unit,
     modifier: Modifier = Modifier,
     scroll: Boolean = false,
+    columns: Int = 0,
 ) {
     val base = modifier.padding(padding.dp)
-    if (mode == "row") {
-        Row(base) {
+    when (mode) {
+        "row" -> Row(base) {
             for (cid in childIds) {
                 val node = tree.nodes.firstOrNull { it.id == cid } ?: continue
                 val w = node.weight()
@@ -98,8 +101,27 @@ private fun Container(
                 key(tree.cardIndex, cid) { RenderNode(node, tree, stack, onResult, cell) }
             }
         }
-    } else {
-        Column(if (scroll) base.verticalScroll(rememberScrollState()) else base) {
+
+        "grid" -> {
+            // Chunk children into rows of `columns` equal-width cells (ADR-0016) — no LazyGrid.
+            val cols = columns.coerceAtLeast(1)
+            Column(if (scroll) base.verticalScroll(rememberScrollState()) else base) {
+                childIds.chunked(cols).forEach { rowIds ->
+                    Row(Modifier.fillMaxWidth()) {
+                        for (cid in rowIds) {
+                            val node = tree.nodes.firstOrNull { it.id == cid } ?: continue
+                            key(tree.cardIndex, cid) {
+                                RenderNode(node, tree, stack, onResult, Modifier.weight(1f))
+                            }
+                        }
+                        // Pad a short final row so cells keep their column width.
+                        repeat(cols - rowIds.size) { Spacer(Modifier.weight(1f)) }
+                    }
+                }
+            }
+        }
+
+        else -> Column(if (scroll) base.verticalScroll(rememberScrollState()) else base) {
             for (cid in childIds) {
                 val node = tree.nodes.firstOrNull { it.id == cid } ?: continue
                 val w = node.weight()
@@ -132,6 +154,7 @@ private fun RenderNode(
             stack = stack,
             onResult = onResult,
             modifier = modifier,
+            columns = node.prop("columns").toIntOrNull() ?: 0,
         )
 
         "button" -> {

@@ -103,6 +103,42 @@ class NativeRenderInstrumentedTest {
         }
     }
 
+    /** A grid layout (ADR-0016): 4 buttons in a 2-column grid; each still dispatches by id. */
+    private val gridYaml = """
+        name: GridITest
+        width: 100
+        height: 100
+        cards:
+          - id: 1
+            name: One
+            fields:
+              - { id: 10, name: out, rect: { x: 0, y: 0, w: 100, h: 20 }, text: "x", locked: true }
+            buttons:
+              - { id: 20, name: a, rect: { x: 0, y: 0, w: 10, h: 10 }, title: "A",
+                  script: "on mouseUp\n  put \"hit-A\" into field \"out\"\nend mouseUp" }
+              - { id: 21, name: b, rect: { x: 0, y: 0, w: 10, h: 10 }, title: "B" }
+              - { id: 22, name: c, rect: { x: 0, y: 0, w: 10, h: 10 }, title: "C" }
+              - { id: 23, name: d, rect: { x: 0, y: 0, w: 10, h: 10 }, title: "D" }
+            layout:
+              mode: grid
+              columns: 2
+              children: [10, 20, 21, 22, 23]
+    """.trimIndent()
+
+    @Test
+    fun grid_layout_renders_and_dispatches() {
+        val stack = uniffi.hyperffi.HyperStack.loadYaml(gridYaml)
+        try {
+            compose.setContent { MaterialTheme { NativeCardScreen(stack) { _, _ -> } } }
+            compose.onNodeWithText("A").assertIsDisplayed()
+            compose.onNodeWithText("D").assertIsDisplayed()
+            compose.onNodeWithText("A").performClick()
+            compose.onNodeWithText("hit-A").assertIsDisplayed()
+        } finally {
+            stack.destroy()
+        }
+    }
+
     @Test
     fun grouped_layout_renders_nested() {
         val stack = uniffi.hyperffi.HyperStack.loadYaml(groupedYaml)
