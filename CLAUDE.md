@@ -52,8 +52,12 @@ Android (Kotlin host, thin)                    rust/ workspace
     realizes it as real **Jetpack Compose Material 3** widgets (`NativeCardScreen`), with id-addressed
     `dispatch` instead of coordinate hit-testing. Reconciliation is free via recomposition keyed by
     node id. A `MainActivity` toggle swaps a `ComposeView` for the `CardView`; authoring stays
-    Canvas-only. **Slice 1** covers the existing button/field set only — new kinds, Material
-    roles/layout/theming, and lifecycle messages are deferred follow-on ADRs.
+    Canvas-only. **Layout (ADR-0014):** a card's optional `layout` overlay (a tree of `row`/`column`
+    **group** nodes referencing objects by id, with per-object `weight` + group `padding`) makes
+    native mode reflow into a grid; `ViewTree` carries `layout`/`padding`, group `ViewNode`s populate
+    `child_ids`. It's an **overlay** — the Canvas path/hit-test/dispatch are untouched and use the
+    absolute `rect`s. Still deferred: `grid`/`free` modes, Material roles/theming, new kinds,
+    lifecycle messages.
 - **Persistence** is layered by *what the data is* (ADR-0013): **document content vs. session view
   state**.
   - *Document content* → **YAML files**, end to end (ADR-0011). Bundled assets are `assets/*.yaml`

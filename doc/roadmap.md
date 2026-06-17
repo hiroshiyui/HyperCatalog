@@ -79,10 +79,12 @@ layout system, and platform reach (permissions, intents, async, accessibility). 
 decisions rather than describing shipped behavior. Full vision in
 [`doc/design/android-hypertalk-dialect.md`](design/android-hypertalk-dialect.md).
 
-**Started:** ADR-0008 **slice 1** has shipped — the core emits a semantic `ViewTree` consumed by a
-**Jetpack Compose Material 3** renderer (`NativeCardScreen`) beside the classic Canvas player, for
-the existing button/field set. New object kinds, Material roles/layout/theming, and lifecycle
-messages remain deferred follow-on ADRs.
+**Started:** ADR-0008 has shipped — the core emits a semantic `ViewTree` consumed by a **Jetpack
+Compose Material 3** renderer (`NativeCardScreen`) beside the classic Canvas player. *Slice 1* (the
+button/field set) and *slice 2* (nested **layout** groups — [ADR-0014](adr/0014-layout-model-group-containers.md):
+`row`/`column` containers + per-object `weight`, so native mode reflows into a grid) are done. New
+object kinds, the rest of the layout model (`grid`/`free`/insets), Material roles/theming, and
+lifecycle messages remain deferred follow-on ADRs.
 
 ## Non-goals (for now)
 
@@ -98,8 +100,10 @@ Rust-native — see [ADR-0001](adr/0001-rust-native-hypertalk.md).
 - [ADR-0005 — On-device object authoring](adr/0005-object-authoring.md)
 - [ADR-0006 — HyperTalk geometry properties](adr/0006-geometry-properties.md)
 - [ADR-0007 — Text styling](adr/0007-text-styling.md)
-- [ADR-0008 — Native-view rendering](adr/0008-native-view-rendering.md) *(accepted; slice 1 — Compose)*
+- [ADR-0008 — Native-view rendering](adr/0008-native-view-rendering.md) *(accepted; Compose, slices 1–2)*
 - [ADR-0009 — Touchscreen gestures](adr/0009-touchscreen-gestures.md)
 - [ADR-0010 — Modern UI considerations](adr/0010-modern-ui-considerations.md)
 - [ADR-0011 — YAML stack files](adr/0011-yaml-stack-files.md)
 - [ADR-0012 — UniFFI bridge](adr/0012-uniffi-bridge.md) *(supersedes ADR-0002)*
+- [ADR-0013 — Persistence layering](adr/0013-persistence-layering.md)
+- [ADR-0014 — Layout model: group containers](adr/0014-layout-model-group-containers.md)

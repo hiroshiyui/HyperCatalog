@@ -51,4 +51,40 @@ class NativeRenderInstrumentedTest {
             stack.destroy()
         }
     }
+
+    /** A card with a layout overlay (ADR-0014): a row group nests a field + button; the button
+     *  still dispatches by id through the nesting. */
+    private val groupedYaml = """
+        name: GroupedITest
+        width: 100
+        height: 100
+        cards:
+          - id: 1
+            name: One
+            fields:
+              - { id: 10, name: out, rect: { x: 0, y: 0, w: 50, h: 20 }, text: "before", locked: true, weight: 2 }
+            buttons:
+              - { id: 20, name: Go, rect: { x: 0, y: 0, w: 50, h: 20 }, title: "Go", weight: 1,
+                  script: "on mouseUp\n  put \"after\" into field \"out\"\nend mouseUp" }
+            layout:
+              mode: column
+              padding: 8
+              children:
+                - { mode: row, padding: 4, children: [10, 20] }
+    """.trimIndent()
+
+    @Test
+    fun grouped_layout_renders_nested() {
+        val stack = uniffi.hyperffi.HyperStack.loadYaml(groupedYaml)
+        try {
+            compose.setContent { MaterialTheme { NativeCardScreen(stack) { _, _ -> } } }
+
+            // Both nested cells render, and a button inside the row group still dispatches by id.
+            compose.onNodeWithText("before").assertIsDisplayed()
+            compose.onNodeWithText("Go").performClick()
+            compose.onNodeWithText("after").assertIsDisplayed()
+        } finally {
+            stack.destroy()
+        }
+    }
 }

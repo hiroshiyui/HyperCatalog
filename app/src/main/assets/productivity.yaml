@@ -339,6 +339,7 @@ cards:
       h: 36
     text: Water
     locked: true
+    weight: 2
   - id: 311
     name: cnt1
     rect:
@@ -348,6 +349,7 @@ cards:
       h: 36
     text: '0'
     locked: true
+    weight: 1
   - id: 302
     name: lbl2
     rect:
@@ -357,6 +359,7 @@ cards:
       h: 36
     text: Pushups
     locked: true
+    weight: 2
   - id: 312
     name: cnt2
     rect:
@@ -366,6 +369,7 @@ cards:
       h: 36
     text: '0'
     locked: true
+    weight: 1
   - id: 303
     name: lbl3
     rect:
@@ -375,6 +379,7 @@ cards:
       h: 36
     text: Pages
     locked: true
+    weight: 2
   - id: 313
     name: cnt3
     rect:
@@ -384,6 +389,7 @@ cards:
       h: 36
     text: '0'
     locked: true
+    weight: 1
   buttons:
   - id: 320
     name: minus1
@@ -518,6 +524,17 @@ cards:
         put 0 into field "cnt3"
       end mouseUp
   script: ''
+  # Native-mode layout overlay (ADR-0014): a column of three [label, −1, Reset, +1, count]
+  # rows, then the full-width "Reset All". Canvas mode ignores this and uses the rects above.
+  layout:
+    mode: column
+    padding: 12
+    children:
+      - 300
+      - { mode: row, padding: 4, children: [301, 320, 330, 340, 311] }
+      - { mode: row, padding: 4, children: [302, 321, 331, 341, 312] }
+      - { mode: row, padding: 4, children: [303, 322, 332, 342, 313] }
+      - 350
 - id: 4
   name: Tip Split
   background_id: 1

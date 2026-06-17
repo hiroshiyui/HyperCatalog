@@ -1,6 +1,7 @@
 package org.ghostsinthelab.app.hypercatalog
 
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -23,15 +24,18 @@ import androidx.compose.ui.unit.dp
 import uniffi.hyperffi.DispatchResult
 import uniffi.hyperffi.HyperStack
 import uniffi.hyperffi.ViewNode
+import uniffi.hyperffi.ViewTree
 
 /**
- * Native (Material 3) render target for the current card (ADR-0008) — the additive alternative to
- * the Canvas [CardView]. It consumes the core's semantic [uniffi.hyperffi.ViewTree] and realizes
- * each node as a real Compose widget; reconciliation is free via recomposition keyed by node id.
+ * Native (Material 3) render target for the current card (ADR-0008/0014) — the additive
+ * alternative to the Canvas [CardView]. Consumes the core's semantic [ViewTree] and realizes each
+ * node as a real Compose widget; **group** nodes become nested `Column`/`Row` containers so a
+ * card's layout overlay reflows into a real grid. Reconciliation is free via recomposition keyed
+ * by node id.
  *
  * Events are **id-addressed**: a widget calls [HyperStack.dispatch], re-entering the *same* message
- * path (object → card → background → stack) a Canvas tap would. Script side effects surface through
- * [onEffects], reusing the host's existing effect handling. The classic [CardView] is untouched.
+ * path a Canvas tap would. Side effects surface through [onEffects]. The classic [CardView] is
+ * untouched.
  */
 @Composable
 fun NativeCardScreen(
@@ -56,56 +60,102 @@ fun NativeCardScreen(
         rev++
     }
 
-    Column(
-        Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(12.dp),
-    ) {
-        for (id in tree.rootIds) {
-            val node = tree.nodes.firstOrNull { it.id == id } ?: continue
-            // Stable identity within a card; resets across navigation (cardIndex changes).
-            key(tree.cardIndex, node.id) {
-                ViewNodeView(node, stack, ::handle)
+    // The root container: scrollable so tall cards don't clip. Nested groups don't scroll.
+    Container(
+        mode = tree.layout,
+        padding = tree.padding,
+        childIds = tree.rootIds,
+        tree = tree,
+        stack = stack,
+        onResult = ::handle,
+        modifier = Modifier.fillMaxSize(),
+        scroll = true,
+    )
+}
+
+/** A `column`/`row` container (root or a group node) that lays out [childIds] of [tree]. */
+@Composable
+private fun Container(
+    mode: String,
+    padding: Float,
+    childIds: List<Int>,
+    tree: ViewTree,
+    stack: HyperStack,
+    onResult: (DispatchResult) -> Unit,
+    modifier: Modifier = Modifier,
+    scroll: Boolean = false,
+) {
+    val base = modifier.padding(padding.dp)
+    if (mode == "row") {
+        Row(base) {
+            for (cid in childIds) {
+                val node = tree.nodes.firstOrNull { it.id == cid } ?: continue
+                val w = node.weight()
+                // Horizontal flex: weighted cells share width; unweighted wrap to content.
+                val cell = if (w > 0f) Modifier.weight(w) else Modifier
+                key(tree.cardIndex, cid) { RenderNode(node, tree, stack, onResult, cell) }
+            }
+        }
+    } else {
+        Column(if (scroll) base.verticalScroll(rememberScrollState()) else base) {
+            for (cid in childIds) {
+                val node = tree.nodes.firstOrNull { it.id == cid } ?: continue
+                val w = node.weight()
+                // Vertical weight can't coexist with verticalScroll; in a scrollable column always
+                // fill width at natural height. In a fixed column, honor a vertical weight.
+                val cell = if (!scroll && w > 0f) Modifier.weight(w) else Modifier.fillMaxWidth()
+                key(tree.cardIndex, cid) { RenderNode(node, tree, stack, onResult, cell) }
             }
         }
     }
 }
 
+/** Render one node into the [modifier] its parent container computed for it (carries weight/size). */
 @Composable
-private fun ViewNodeView(
+private fun RenderNode(
     node: ViewNode,
+    tree: ViewTree,
     stack: HyperStack,
     onResult: (DispatchResult) -> Unit,
+    modifier: Modifier,
 ) {
-    fun prop(k: String): String = node.props.firstOrNull { it.key == k }?.value ?: ""
-    if (prop("visible") == "false") return
+    if (node.prop("visible") == "false") return
 
     when (node.kind) {
+        "group" -> Container(
+            mode = node.prop("mode"),
+            padding = node.prop("padding").toFloatOrNull() ?: 0f,
+            childIds = node.childIds,
+            tree = tree,
+            stack = stack,
+            onResult = onResult,
+            modifier = modifier,
+        )
+
         "button" -> {
-            val label = prop("title")
+            val label = node.prop("title")
             val click = { onResult(stack.dispatch(node.id, "mouseUp", emptyList())) }
             // Abstract style value → Material widget; unknown styles fall back to outlined.
-            when (prop("style")) {
-                "rectangle" -> Button(onClick = click, modifier = Modifier.fillMaxWidth()) { Text(label) }
-                "transparent" -> TextButton(onClick = click, modifier = Modifier.fillMaxWidth()) { Text(label) }
-                else -> OutlinedButton(onClick = click, modifier = Modifier.fillMaxWidth()) { Text(label) }
+            when (node.prop("style")) {
+                "rectangle" -> Button(onClick = click, modifier = modifier) { Text(label) }
+                "transparent" -> TextButton(onClick = click, modifier = modifier) { Text(label) }
+                else -> OutlinedButton(onClick = click, modifier = modifier) { Text(label) }
             }
         }
 
         "field" -> {
-            val locked = prop("locked") == "true"
-            // Locked fields are script-driven: bind directly to the (freshly fetched) tree value
-            // so a mutation shows on the next rev. Unlocked fields hold local edit state.
-            var draft by remember(node.id) { mutableStateOf(prop("text")) }
+            val locked = node.prop("locked") == "true"
+            // Locked fields are script-driven: bind to the freshly-fetched tree value so a mutation
+            // shows on the next rev. Unlocked fields hold local edit state.
+            var draft by remember(node.id) { mutableStateOf(node.prop("text")) }
             OutlinedTextField(
-                value = if (locked) prop("text") else draft,
+                value = if (locked) node.prop("text") else draft,
                 onValueChange = {
                     draft = it
                     stack.setFieldText(node.id, it)
                 },
                 readOnly = locked,
-                modifier = Modifier.fillMaxWidth(),
+                modifier = modifier,
             )
         }
 
@@ -114,3 +164,7 @@ private fun ViewNodeView(
         }
     }
 }
+
+private fun ViewNode.prop(key: String): String = props.firstOrNull { it.key == key }?.value ?: ""
+
+private fun ViewNode.weight(): Float = prop("weight").toFloatOrNull() ?: 0f

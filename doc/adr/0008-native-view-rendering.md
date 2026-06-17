@@ -1,7 +1,9 @@
 # ADR-0008 — Native-view rendering (semantic view tree)
 
 - Status: **Accepted** — slice 1 implemented (the existing button/field set, rendered via Jetpack
-  Compose). Open questions 1 and 4 are resolved (below); 2 and 3 remain open.
+  Compose); **slice 2** adds nested layout (see [ADR-0014](0014-layout-model-group-containers.md):
+  `group` nodes populate `child_ids`, `ViewTree` gains `layout`/`padding`, objects gain `weight`).
+  Open questions 1 and 4 are resolved (below); 2 and 3 remain open.
 - Date: 2026-06-16 (accepted 2026-06-17)
 - Related: [ADR-0001](0001-rust-native-hypertalk.md) (Rust-native language),
   [ADR-0002](0002-json-string-jni-bridge.md) (host bridge — this evolves its payload),
