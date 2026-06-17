@@ -1,7 +1,16 @@
 //! Unit tests for the parser, interpreter, and session facade.
 
 use crate::script::parse_script;
-use crate::session::{HostEffect, ObjectProps, Session};
+use crate::session::{HostEffect, ObjectProps, Session, ViewNode};
+
+/// A view node's property value by key (empty if absent), for the ADR-0008 view-tree tests.
+fn prop(n: &ViewNode, key: &str) -> String {
+    n.props
+        .iter()
+        .find(|p| p.key == key)
+        .map(|p| p.value.clone())
+        .unwrap_or_default()
+}
 
 /// A minimal two-card stack used across tests.
 fn sample_json() -> String {
@@ -79,6 +88,76 @@ fn button_handler_mutates_field() {
         .find(|d| d.id == 10)
         .unwrap();
     assert_eq!(counter.text, "2");
+}
+
+// --- ADR-0008 native render target: semantic view tree + id-addressed dispatch ---
+
+#[test]
+fn view_tree_shape() {
+    let s = Session::load_from_json(&sample_json()).unwrap();
+    let t = s.render_view_tree();
+    assert_eq!(t.card_count, 2);
+    assert_eq!(t.card_name, "First");
+    // Render order: empty background, then card fields (10, 11), then card buttons (20, 21).
+    assert_eq!(t.root_ids, vec![10, 11, 20, 21]);
+
+    let counter = t.nodes.iter().find(|n| n.id == 10).unwrap();
+    assert_eq!(counter.kind, "field");
+    assert_eq!(prop(counter, "text"), "0");
+    assert_eq!(prop(counter, "locked"), "true");
+
+    let inc = t.nodes.iter().find(|n| n.id == 20).unwrap();
+    assert_eq!(inc.kind, "button");
+    assert_eq!(prop(inc, "title"), "Inc"); // title empty → falls back to name
+    assert_eq!(prop(inc, "style"), "rounded"); // default ButtonStyle
+}
+
+#[test]
+fn dispatch_by_id_matches_touch() {
+    // The load-bearing parity: id-dispatch must run the same handler a coordinate tap does.
+    let mut by_touch = Session::load_from_json(&sample_json()).unwrap();
+    let rt = by_touch.dispatch_touch(20.0, 120.0, "up"); // hits button 20
+
+    let mut by_id = Session::load_from_json(&sample_json()).unwrap();
+    let ri = by_id.dispatch_by_id(20, "mouseUp", &[]);
+
+    assert!(rt.error.is_none() && ri.error.is_none());
+    assert_eq!(rt.needs_redraw, ri.needs_redraw);
+    let field_of = |s: &Session| {
+        s.render_current_card()
+            .items
+            .into_iter()
+            .find(|d| d.id == 10)
+            .unwrap()
+            .text
+    };
+    assert_eq!(field_of(&by_touch), "1");
+    assert_eq!(field_of(&by_id), "1");
+}
+
+#[test]
+fn dispatch_by_id_unknown_is_noop() {
+    let mut s = Session::load_from_json(&sample_json()).unwrap();
+    let r = s.dispatch_by_id(999, "mouseUp", &[]);
+    assert!(r.error.is_none());
+    assert!(!r.needs_redraw);
+    assert!(!r.card_changed);
+}
+
+#[test]
+fn view_tree_omits_geometry() {
+    // Guardrail: geometry/pixels must never cross the boundary outward (ADR-0008).
+    let s = Session::load_from_json(&sample_json()).unwrap();
+    let t = s.render_view_tree();
+    for n in &t.nodes {
+        for p in &n.props {
+            assert!(
+                !matches!(p.key.as_str(), "x" | "y" | "w" | "h" | "rect"),
+                "view node leaked geometry prop {:?}",
+                p.key
+            );
+        }
+    }
 }
 
 #[test]

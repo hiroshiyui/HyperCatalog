@@ -92,6 +92,67 @@ impl From<hypercore::RenderList> for RenderList {
     }
 }
 
+/// One abstract property of a view node — mirrors `hypercore::Prop`.
+#[derive(uniffi::Record)]
+pub struct ViewProp {
+    pub key: String,
+    pub value: String,
+}
+
+/// One node of the semantic view tree (native render target) — mirrors `hypercore::ViewNode`.
+#[derive(uniffi::Record)]
+pub struct ViewNode {
+    pub id: i32,
+    pub kind: String,
+    pub props: Vec<ViewProp>,
+    pub child_ids: Vec<i32>,
+}
+
+/// The semantic view tree for the current card (ADR-0008) — mirrors `hypercore::ViewTree`. The
+/// flat-node alternate to `RenderList`; the host realizes it as Material widgets. No geometry.
+#[derive(uniffi::Record)]
+pub struct ViewTree {
+    pub stack_name: String,
+    pub card_name: String,
+    pub card_index: i32,
+    pub card_count: i32,
+    pub root_ids: Vec<i32>,
+    pub nodes: Vec<ViewNode>,
+}
+
+impl From<hypercore::Prop> for ViewProp {
+    fn from(p: hypercore::Prop) -> Self {
+        ViewProp {
+            key: p.key,
+            value: p.value,
+        }
+    }
+}
+
+impl From<hypercore::ViewNode> for ViewNode {
+    fn from(n: hypercore::ViewNode) -> Self {
+        ViewNode {
+            id: n.id as i32,
+            kind: n.kind,
+            props: n.props.into_iter().map(ViewProp::from).collect(),
+            child_ids: n.child_ids.into_iter().map(|i| i as i32).collect(),
+        }
+    }
+}
+
+impl From<hypercore::ViewTree> for ViewTree {
+    fn from(t: hypercore::ViewTree) -> Self {
+        ViewTree {
+            stack_name: t.stack_name,
+            card_name: t.card_name,
+            card_index: t.card_index as i32,
+            card_count: t.card_count as i32,
+            root_ids: t.root_ids.into_iter().map(|i| i as i32).collect(),
+            nodes: t.nodes.into_iter().map(ViewNode::from).collect(),
+        }
+    }
+}
+
 /// A side effect the host performs after a dispatch — mirrors `hypercore::HostEffect`.
 #[derive(uniffi::Enum)]
 pub enum HostEffect {
@@ -231,6 +292,22 @@ impl HyperStack {
     /// The draw list for the current card — the typed replacement for `nativeRender`'s JSON.
     pub fn render_current_card(&self) -> RenderList {
         self.inner.lock().unwrap().render_current_card().into()
+    }
+
+    /// The semantic view tree for the current card — the native (Material) render target
+    /// (ADR-0008), beside `render_current_card`. Host picks one per render mode.
+    pub fn render_view_tree(&self) -> ViewTree {
+        self.inner.lock().unwrap().render_view_tree().into()
+    }
+
+    /// Id-addressed semantic dispatch (ADR-0008) — the view-tree analogue of `dispatch_touch`.
+    /// A native widget fires `message` (e.g. `mouseUp`) at node `id`; runs the same message path.
+    pub fn dispatch(&self, id: i32, message: String, args: Vec<String>) -> DispatchResult {
+        self.inner
+            .lock()
+            .unwrap()
+            .dispatch_by_id(id as u32, &message, &args)
+            .into()
     }
 
     /// Fire the current card's `openCard` handler (run after navigation).

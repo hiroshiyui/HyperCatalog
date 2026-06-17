@@ -52,6 +52,44 @@ pub struct DrawCmd {
     pub text_align: String,
 }
 
+/// A **semantic view tree** for the native (Material) render target (ADR-0008) — the alternate
+/// to `RenderList`. The core says *what the UI is and means*; the host realizes it as real
+/// widgets. The tree is **flat** (id-indexed `nodes` + `root_ids`) so it crosses UniFFI cleanly
+/// (no recursive records) and stays forward-compatible: layout containers later populate
+/// `child_ids` without changing the shape. **No geometry/pixels cross outward** — the host owns
+/// layout (contrast `DrawCmd`, which carries card-coord rects for the Canvas target).
+#[derive(Debug, Serialize, PartialEq)]
+pub struct ViewTree {
+    pub stack_name: String,
+    pub card_name: String,
+    pub card_index: usize,
+    pub card_count: usize,
+    /// Top-level node ids, in render (z) order.
+    pub root_ids: Vec<u32>,
+    pub nodes: Vec<ViewNode>,
+}
+
+/// One node in a [`ViewTree`]. `kind` and prop *keys* are abstract UI vocabulary (`button`,
+/// `field`, `text`, `locked`); the host maps them to widgets and degrades gracefully on unknowns.
+#[derive(Debug, Serialize, PartialEq)]
+pub struct ViewNode {
+    pub id: u32,
+    /// Abstract UI kind: `"button"` or `"field"` in slice 1 (taxonomy grows in later ADRs).
+    pub kind: String,
+    /// Stable, ordered abstract properties (a `Vec`, not a map, so the desktop `tree` dump and
+    /// golden tests are deterministic).
+    pub props: Vec<Prop>,
+    /// Child node ids; empty in slice 1 (one level), populated when containers land.
+    pub child_ids: Vec<u32>,
+}
+
+/// One abstract key/value property of a [`ViewNode`]. Values are opaque strings the host interprets.
+#[derive(Debug, Serialize, PartialEq, Clone)]
+pub struct Prop {
+    pub key: String,
+    pub value: String,
+}
+
 /// An object's editable properties for the host inspector — the union of the button and field
 /// shapes (button-only fields blank for a field, and vice versa). The typed replacement for the
 /// JSON props blob; geometry is read-only here (set it with `set_object_rect`).
@@ -183,6 +221,40 @@ impl Session {
             width: self.stack.width,
             height: self.stack.height,
             items,
+        }
+    }
+
+    /// Build the **semantic view tree** for the current card — the native render target
+    /// (ADR-0008), the structural analogue of [`Session::render_current_card`]. Same model walk
+    /// and z-order (background under card), but projected into abstract [`ViewNode`]s carrying
+    /// meaning, **not geometry**. The host realizes it as Material widgets.
+    pub fn render_view_tree(&self) -> ViewTree {
+        let card = &self.stack.cards[self.card_index];
+        let mut nodes = Vec::new();
+        let mut root_ids = Vec::new();
+
+        if let Some(bg) = card.background_id.and_then(|id| self.stack.background(id)) {
+            for f in &bg.fields {
+                push_field_node(&mut nodes, &mut root_ids, f);
+            }
+            for b in &bg.buttons {
+                push_button_node(&mut nodes, &mut root_ids, b);
+            }
+        }
+        for f in &card.fields {
+            push_field_node(&mut nodes, &mut root_ids, f);
+        }
+        for b in &card.buttons {
+            push_button_node(&mut nodes, &mut root_ids, b);
+        }
+
+        ViewTree {
+            stack_name: self.stack.name.clone(),
+            card_name: card.name.clone(),
+            card_index: self.card_index,
+            card_count: self.stack.cards.len(),
+            root_ids,
+            nodes,
         }
     }
 
@@ -633,6 +705,42 @@ impl Session {
         }
     }
 
+    /// **Id-addressed semantic dispatch** for the native render target (ADR-0008) — the
+    /// view-tree analogue of `dispatch_touch`. A widget fires `message` (e.g. `mouseUp`) at the
+    /// node `id`; we resolve the object and run the message along the **same** message path
+    /// (object → card → background → stack), so id-dispatch and a coordinate tap are behaviorally
+    /// identical. `args` is accepted for a future-proof signature (typed/lifecycle args) but is
+    /// unused in slice 1. Unknown ids are no-ops.
+    pub fn dispatch_by_id(&mut self, id: u32, message: &str, _args: &[String]) -> DispatchResult {
+        let Some(me) = self.me_for_id(id) else {
+            return DispatchResult::nothing();
+        };
+        let mut r = self.dispatch_message(Some(me), message);
+        r.needs_redraw = true;
+        r
+    }
+
+    /// Resolve a node id to its `Me`, searching card then background, buttons then fields
+    /// (mirroring `hit_test`'s z-priority). `None` if no such object is on the current card.
+    fn me_for_id(&self, id: u32) -> Option<Me> {
+        let card = &self.stack.cards[self.card_index];
+        if card.buttons.iter().any(|b| b.id == id) {
+            return Some(Me::Button(id));
+        }
+        if card.fields.iter().any(|f| f.id == id) {
+            return Some(Me::Field(id));
+        }
+        if let Some(bg) = card.background_id.and_then(|i| self.stack.background(i)) {
+            if bg.buttons.iter().any(|b| b.id == id) {
+                return Some(Me::Button(id));
+            }
+            if bg.fields.iter().any(|f| f.id == id) {
+                return Some(Me::Field(id));
+            }
+        }
+        None
+    }
+
     /// Dispatch a **touchscreen gesture** as a HyperTalk message — the post-WIMP companion to
     /// `dispatch_touch`. `gesture` is a handler name like `tap`, `doubleTap`, `longPress`, or
     /// `swipeLeft`/`swipeRight`/`swipeUp`/`swipeDown` (matched case-insensitively). The message
@@ -917,6 +1025,87 @@ fn button_cmd(b: &crate::model::Button) -> DrawCmd {
         text_style: b.text_style.clone(),
         text_align: b.text_align.clone(),
     }
+}
+
+/// Project a field into a [`ViewNode`] with abstract props only (no geometry — ADR-0008).
+fn push_field_node(nodes: &mut Vec<ViewNode>, roots: &mut Vec<u32>, f: &crate::model::Field) {
+    roots.push(f.id);
+    nodes.push(ViewNode {
+        id: f.id,
+        kind: "field".to_string(),
+        child_ids: Vec::new(),
+        props: vec![
+            Prop {
+                key: "text".to_string(),
+                value: f.text.clone(),
+            },
+            Prop {
+                key: "locked".to_string(),
+                value: f.locked.to_string(),
+            },
+            Prop {
+                key: "visible".to_string(),
+                value: f.visible.to_string(),
+            },
+            Prop {
+                key: "font".to_string(),
+                value: f.text_font.clone(),
+            },
+            Prop {
+                key: "size".to_string(),
+                value: f.text_size.to_string(),
+            },
+            Prop {
+                key: "textStyle".to_string(),
+                value: f.text_style.clone(),
+            },
+            Prop {
+                key: "align".to_string(),
+                value: f.text_align.clone(),
+            },
+        ],
+    });
+}
+
+/// Project a button into a [`ViewNode`]. `style` is the existing abstract `ButtonStyle` string
+/// (`rounded`/`rectangle`/`transparent`); the host maps it to a Material widget.
+fn push_button_node(nodes: &mut Vec<ViewNode>, roots: &mut Vec<u32>, b: &crate::model::Button) {
+    roots.push(b.id);
+    nodes.push(ViewNode {
+        id: b.id,
+        kind: "button".to_string(),
+        child_ids: Vec::new(),
+        props: vec![
+            Prop {
+                key: "title".to_string(),
+                value: b.label().to_string(),
+            },
+            Prop {
+                key: "style".to_string(),
+                value: format!("{:?}", b.style).to_lowercase(),
+            },
+            Prop {
+                key: "visible".to_string(),
+                value: b.visible.to_string(),
+            },
+            Prop {
+                key: "font".to_string(),
+                value: b.text_font.clone(),
+            },
+            Prop {
+                key: "size".to_string(),
+                value: b.text_size.to_string(),
+            },
+            Prop {
+                key: "textStyle".to_string(),
+                value: b.text_style.clone(),
+            },
+            Prop {
+                key: "align".to_string(),
+                value: b.text_align.clone(),
+            },
+        ],
+    });
 }
 
 fn host_effect(c: &HostCmd) -> HostEffect {

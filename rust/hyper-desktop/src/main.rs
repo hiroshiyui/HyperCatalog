@@ -2,7 +2,8 @@
 //! can be exercised without an Android emulator.
 //!
 //! Usage: `hyper-desktop <stack.json>` then type commands:
-//!   dump            show the current card and its objects
+//!   dump            show the current card and its objects (Canvas render list)
+//!   tree            show the current card's semantic view tree (native render target, ADR-0008)
 //!   tap <name|id>   tap a button/field by name or id (fires its mouseUp)
 //!   tap <x> <y>     tap at card coordinates
 //!   type <id> <txt> set a field's text (simulates host editing)
@@ -12,7 +13,7 @@
 
 use std::io::{self, Write};
 
-use hypercore::Session;
+use hypercore::{Session, ViewNode, ViewTree};
 
 fn main() {
     let path = match std::env::args().nth(1) {
@@ -62,6 +63,7 @@ fn main() {
             "quit" | "q" | "exit" => break,
             "help" => help(),
             "dump" => dump(&session),
+            "tree" => tree(&session),
             "save" => {
                 let out = if rest.is_empty() {
                     path.clone()
@@ -165,8 +167,43 @@ fn dump(session: &Session) {
     }
 }
 
+/// Print the semantic view tree (ADR-0008) as indented text. This is the no-Android proof that
+/// the native render target is consumable headlessly: the same `Session` feeds both `dump`
+/// (Canvas list) and `tree` (view tree), with no platform present.
+fn tree(session: &Session) {
+    let t = session.render_view_tree();
+    println!(
+        "── {} · card {}/{} \"{}\" (view tree) ──",
+        t.stack_name,
+        t.card_index + 1,
+        t.card_count,
+        t.card_name
+    );
+    for id in &t.root_ids {
+        if let Some(n) = t.nodes.iter().find(|n| n.id == *id) {
+            print_node(&t, n, 1);
+        }
+    }
+}
+
+fn print_node(t: &ViewTree, n: &ViewNode, depth: usize) {
+    let pad = "  ".repeat(depth);
+    let props: Vec<String> = n
+        .props
+        .iter()
+        .map(|p| format!("{}={:?}", p.key, p.value))
+        .collect();
+    println!("{pad}{} #{} {}", n.kind, n.id, props.join(" "));
+    // Recurse for nested containers (none in slice 1; ready for later layout kinds).
+    for cid in &n.child_ids {
+        if let Some(c) = t.nodes.iter().find(|x| x.id == *cid) {
+            print_node(t, c, depth + 1);
+        }
+    }
+}
+
 fn help() {
     println!(
-        "commands:\n  dump\n  tap <name|id> | tap <x> <y>\n  type <field-id> <text>\n  go next|prev|first|last\n  save [path]\n  quit"
+        "commands:\n  dump\n  tree\n  tap <name|id> | tap <x> <y>\n  type <field-id> <text>\n  go next|prev|first|last\n  save [path]\n  quit"
     );
 }

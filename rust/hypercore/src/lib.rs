@@ -6,7 +6,9 @@ pub mod model;
 pub mod script;
 pub mod session;
 
-pub use session::{DispatchResult, DrawCmd, HostEffect, ObjectProps, RenderList, Session};
+pub use session::{
+    DispatchResult, DrawCmd, HostEffect, ObjectProps, Prop, RenderList, Session, ViewNode, ViewTree,
+};
 
 #[cfg(test)]
 mod tests;
