@@ -434,6 +434,21 @@ fn me_resolves_for_background_object() {
 }
 
 #[test]
+fn open_card_surfaces_host_effects() {
+    // Regression: an `on openCard` handler's host effects (beep/answer/…) must come back in the
+    // DispatchResult — the host now surfaces them after navigation (CardView.applyDispatchResult).
+    let json = r#"{
+      "name": "A", "cards": [
+        { "id": 1, "name": "One", "script": "on openCard\n  beep\nend openCard" },
+        { "id": 2, "name": "Two" }
+      ]
+    }"#;
+    let mut s = Session::load_from_json(json).unwrap();
+    let r = s.open_current_card();
+    assert_eq!(r.host_cmds, vec![HostEffect::Beep]);
+}
+
+#[test]
 fn answer_produces_host_effect() {
     let json = r#"{
       "name": "A", "cards": [

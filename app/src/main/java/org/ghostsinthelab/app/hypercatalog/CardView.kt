@@ -369,11 +369,7 @@ class CardView @JvmOverloads constructor(
      * card's `openCard` on a navigation. Shared by the tap and gesture paths.
      */
     private fun applyDispatchResult(result: uniffi.hyperffi.DispatchResult) {
-        val error = result.error
-        val effects = result.hostCmds.map { hostEffect(it) }
-        if (effects.isNotEmpty() || error != null) {
-            callbacks?.onEffects(effects, error)
-        }
+        surfaceEffects(result)
 
         result.focusField?.let { id ->
             items.firstOrNull { it.id == id }?.let { f ->
@@ -382,10 +378,21 @@ class CardView @JvmOverloads constructor(
         }
 
         if (result.cardChanged) {
-            stack?.openCard() // run the new card's openCard handler
+            // Run the new card's openCard handler and surface ITS effects too (e.g. an
+            // `on openCard` that beeps/answers) — only its field mutations would otherwise show.
+            stack?.openCard()?.let { surfaceEffects(it) }
             refresh()
         } else if (result.needsRedraw) {
             refresh()
+        }
+    }
+
+    /** Hand a dispatch's host effects/error to the host to perform. */
+    private fun surfaceEffects(result: uniffi.hyperffi.DispatchResult) {
+        val error = result.error
+        val effects = result.hostCmds.map { hostEffect(it) }
+        if (effects.isNotEmpty() || error != null) {
+            callbacks?.onEffects(effects, error)
         }
     }
 
