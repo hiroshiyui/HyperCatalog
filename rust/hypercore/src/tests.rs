@@ -155,19 +155,18 @@ fn dispatch_by_id_unknown_is_noop() {
 }
 
 #[test]
-fn view_tree_omits_geometry() {
-    // Guardrail: geometry/pixels must never cross the boundary outward (ADR-0008).
+fn default_layout_mirrors_classic_as_free() {
+    // A card with no layout overlay now defaults to `free`/absolute (ADR-0017), so native mirrors
+    // the classic Canvas layout. Object nodes carry their geometry; declarative modes still don't
+    // (see `non_free_layout_still_omits_geometry`).
     let s = Session::load_from_json(&sample_json()).unwrap();
     let t = s.render_view_tree();
-    for n in &t.nodes {
-        for p in &n.props {
-            assert!(
-                !matches!(p.key.as_str(), "x" | "y" | "w" | "h" | "rect"),
-                "view node leaked geometry prop {:?}",
-                p.key
-            );
-        }
-    }
+    assert_eq!(t.layout, "free");
+    assert_eq!(t.width, 320.0); // card/stack size, for the host's absolute placement
+    assert_eq!(t.height, 480.0);
+    let counter = t.nodes.iter().find(|n| n.id == 10).unwrap();
+    assert_eq!(prop(counter, "x"), "10");
+    assert_eq!(prop(counter, "y"), "10");
 }
 
 // --- ADR-0014 layout overlay: group containers, weight ---
@@ -221,12 +220,12 @@ fn view_tree_groups_nest() {
 }
 
 #[test]
-fn view_tree_no_layout_is_flat() {
-    // A card without a layout overlay falls back to a flat column (slice-1 behavior, unchanged).
+fn view_tree_no_layout_is_free() {
+    // A card without a layout overlay defaults to `free`/absolute (ADR-0017): every object at its
+    // rect, same set/order as the flat walk, no group nodes.
     let s = Session::load_from_json(&sample_json()).unwrap();
     let t = s.render_view_tree();
-    assert_eq!(t.layout, "column");
-    assert_eq!(t.padding, 0.0);
+    assert_eq!(t.layout, "free");
     assert_eq!(t.root_ids, vec![10, 11, 20, 21]);
     assert!(t.nodes.iter().all(|n| n.kind != "group"));
 }

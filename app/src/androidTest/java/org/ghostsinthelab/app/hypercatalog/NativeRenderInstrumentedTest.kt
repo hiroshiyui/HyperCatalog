@@ -116,6 +116,7 @@ class NativeRenderInstrumentedTest {
               - { id: 21, name: b, rect: { x: 0, y: 0, w: 10, h: 10 }, title: "Tonal", role: tonal }
               - { id: 22, name: c, rect: { x: 0, y: 0, w: 10, h: 10 }, title: "Fab", role: fab,
                   script: "on mouseUp\n  set the name of this stack to \"tapped\"\nend mouseUp" }
+            layout: { mode: column, children: [20, 21, 22] }
     """.trimIndent()
 
     @Test

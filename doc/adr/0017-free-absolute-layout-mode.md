@@ -1,6 +1,7 @@
-# ADR-0017 — `free` (absolute) layout mode for native rendering
+# ADR-0017 — `free` (absolute) layout mode, and the default for un-laid-out cards
 
-- Status: **Accepted** — implemented (slice 5 of the native render target).
+- Status: **Accepted** — implemented (slice 5); **amended** so `free` is the *default* for a card
+  with no `layout` overlay (was: flat column), so native mirrors classic.
 - Date: 2026-06-17
 - Related: [ADR-0014](0014-layout-model-group-containers.md)/[ADR-0016](0016-grid-layout-and-card-layout-scripting.md)
   (the layout overlay this extends), [ADR-0008](0008-native-view-rendering.md) (whose
@@ -12,6 +13,18 @@ The native target deliberately omits geometry (ADR-0008): the host owns layout, 
 it declarative `row`/`column`/`grid`. But existing stacks were authored with **absolute rects** and a
 fixed letterboxed card; rendering them natively currently stacks everything in a column, which looks
 wrong. The dialect names **`free`** as the "keep the classic feel" escape hatch. This slice ships it.
+
+## Amendment (default for un-laid-out cards)
+
+Originally `free` was an opt-in escape hatch and a card with **no** `layout` overlay rendered as a
+flat column. In practice that made native mode diverge sharply from classic — an
+absolutely-authored 2-column card became a 1-column stack — which read as broken. So the default is
+flipped: **a card with no `layout` overlay now renders as `free`** (every object at its authored
+rect), so native looks like classic *with real Material widgets*. Authors **opt into** responsive
+layout (`column`/`row`/`grid`) by adding a `layout` overlay. Consequences: ADR-0008's "no geometry
+crosses outward" guardrail now holds only for the **declarative** modes (column/row/grid — verified
+by `non_free_layout_still_omits_geometry`); the default and `free` intentionally emit card-unit
+geometry (the host still owns the unit→dp mapping).
 
 ## Decision
 

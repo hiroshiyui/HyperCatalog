@@ -282,23 +282,25 @@ impl Session {
             );
             (root.mode.clone(), root.padding, root.columns, root_ids)
         } else {
-            // Legacy flat fallback (slice 1): all objects, background under card, as a column.
+            // No layout overlay → **mirror the classic Canvas layout** (ADR-0017): emit every
+            // object with its absolute geometry as `free`, so native looks the same as classic for
+            // un-authored cards (authors opt into responsive layout by adding a `layout` overlay).
             let mut root_ids = Vec::new();
             if let Some(bg) = bg {
                 for f in &bg.fields {
-                    push_field_node(&mut nodes, &mut root_ids, f);
+                    push_free_node(&mut nodes, &mut root_ids, field_node(f), f.rect);
                 }
                 for b in &bg.buttons {
-                    push_button_node(&mut nodes, &mut root_ids, b);
+                    push_free_node(&mut nodes, &mut root_ids, button_node(b), b.rect);
                 }
             }
             for f in &card.fields {
-                push_field_node(&mut nodes, &mut root_ids, f);
+                push_free_node(&mut nodes, &mut root_ids, field_node(f), f.rect);
             }
             for b in &card.buttons {
-                push_button_node(&mut nodes, &mut root_ids, b);
+                push_free_node(&mut nodes, &mut root_ids, button_node(b), b.rect);
             }
-            ("column".to_string(), 0.0, 0, root_ids)
+            ("free".to_string(), 0.0, 0, root_ids)
         };
 
         ViewTree {
@@ -1268,16 +1270,22 @@ fn button_node(b: &crate::model::Button) -> ViewNode {
     }
 }
 
-/// Legacy (no-layout) flat projection: push a field node and its root id.
-fn push_field_node(nodes: &mut Vec<ViewNode>, roots: &mut Vec<u32>, f: &crate::model::Field) {
-    roots.push(f.id);
-    nodes.push(field_node(f));
-}
-
-/// Legacy (no-layout) flat projection: push a button node and its root id.
-fn push_button_node(nodes: &mut Vec<ViewNode>, roots: &mut Vec<u32>, b: &crate::model::Button) {
-    roots.push(b.id);
-    nodes.push(button_node(b));
+/// No-layout (`free`) projection: append a node's absolute geometry and push it as a root
+/// (ADR-0017) — used when a card has no layout overlay so native mirrors the classic Canvas.
+fn push_free_node(
+    nodes: &mut Vec<ViewNode>,
+    roots: &mut Vec<u32>,
+    mut node: ViewNode,
+    rect: crate::model::Rect,
+) {
+    for (k, v) in [("x", rect.x), ("y", rect.y), ("w", rect.w), ("h", rect.h)] {
+        node.props.push(Prop {
+            key: k.to_string(),
+            value: v.to_string(),
+        });
+    }
+    roots.push(node.id);
+    nodes.push(node);
 }
 
 /// Resolve a layout-overlay object reference to a [`ViewNode`] (with a `weight` prop appended),

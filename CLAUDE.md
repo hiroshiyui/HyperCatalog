@@ -48,9 +48,12 @@ Android (Kotlin host, thin)                    rust/ workspace
 - **Rendering — two targets** (ADR-0008), both fed by the one `Session`, host-selectable:
   - *Classic* (default): the core emits card-coordinate draw primitives (`RenderList`); `CardView`
     letterbox-scales them onto a Canvas and maps touches back. Redraws are event-driven, not per-frame.
-  - *Native*: the core emits a semantic `ViewTree` (abstract kinds/props, **no geometry**); the host
-    realizes it as real **Jetpack Compose Material 3** widgets (`NativeCardScreen`), with id-addressed
-    `dispatch` instead of coordinate hit-testing. Reconciliation is free via recomposition keyed by
+  - *Native*: the core emits a semantic `ViewTree`; the host realizes it as real **Jetpack Compose
+    Material 3** widgets (`NativeCardScreen`), with id-addressed `dispatch` instead of coordinate
+    hit-testing. A card with **no `layout` overlay defaults to `free`/absolute** (ADR-0017), so native
+    mirrors the classic Canvas layout (with real Material widgets); authors opt into responsive
+    `column`/`row`/`grid` by adding a `layout`. Declarative modes are geometry-free; `free`/default
+    emit card-unit geometry (host owns unit→dp). Reconciliation is free via recomposition keyed by
     node id. A `MainActivity` toggle swaps a `ComposeView` for the `CardView`; authoring stays
     Canvas-only. **Layout (ADR-0014):** a card's optional `layout` overlay (a tree of `row`/`column`
     **group** nodes referencing objects by id, with per-object `weight` + group `padding`) makes
