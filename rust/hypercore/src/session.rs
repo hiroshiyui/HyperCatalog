@@ -103,13 +103,15 @@ pub struct Prop {
 #[derive(Debug, Clone, PartialEq)]
 pub struct ObjectProps {
     pub id: u32,
-    /// "button" or "field".
+    /// "button", "switch", or "field".
     pub kind: String,
     pub name: String,
     pub title: String,
     pub style: String,
     pub text: String,
     pub locked: bool,
+    /// Switch state (ADR-0015); false for plain buttons and fields.
+    pub checked: bool,
     pub x: f32,
     pub y: f32,
     pub w: f32,
@@ -410,6 +412,7 @@ impl Session {
                     },
                     title: "Button".to_string(),
                     style: ButtonStyle::Rounded,
+                    checked: None,
                     visible: true,
                     script: String::new(),
                     text_font: String::new(),
@@ -576,12 +579,18 @@ impl Session {
         if let Some(b) = self.find_button(id) {
             return Some(ObjectProps {
                 id: b.id,
-                kind: "button".to_string(),
+                kind: if b.checked.is_some() {
+                    "switch"
+                } else {
+                    "button"
+                }
+                .to_string(),
                 name: b.name.clone(),
                 title: b.title.clone(),
                 style: format!("{:?}", b.style).to_lowercase(),
                 text: String::new(),
                 locked: false,
+                checked: b.checked.unwrap_or(false),
                 x: b.rect.x,
                 y: b.rect.y,
                 w: b.rect.w,
@@ -601,6 +610,7 @@ impl Session {
                 style: String::new(),
                 text: f.text.clone(),
                 locked: f.locked,
+                checked: false,
                 x: f.rect.x,
                 y: f.rect.y,
                 w: f.rect.w,
@@ -651,6 +661,28 @@ impl Session {
                 .and_then(|i| self.stack.background(i))
                 .and_then(|bg| bg.buttons.iter().find(|b| b.id == id))
         })
+    }
+
+    /// If `id` is a **switch** (a button with `checked: Some`), flip it before its `mouseUp` runs,
+    /// so a script-less switch still toggles and `the checked of me` reads the new state (ADR-0015).
+    fn toggle_if_switch(&mut self, id: u32) {
+        let bg_id = {
+            let card = &mut self.stack.cards[self.card_index];
+            if let Some(b) = card.buttons.iter_mut().find(|b| b.id == id) {
+                if let Some(c) = b.checked {
+                    b.checked = Some(!c);
+                }
+                return;
+            }
+            card.background_id
+        };
+        if let Some(bg_id) = bg_id
+            && let Some(bg) = self.stack.backgrounds.iter_mut().find(|b| b.id == bg_id)
+            && let Some(b) = bg.buttons.iter_mut().find(|b| b.id == id)
+            && let Some(c) = b.checked
+        {
+            b.checked = Some(!c);
+        }
     }
 
     fn find_field(&self, id: u32) -> Option<&Field> {
@@ -711,6 +743,7 @@ impl Session {
         };
         match hit {
             Hit::Button(id) => {
+                self.toggle_if_switch(id);
                 let mut r = self.dispatch_message(Some(Me::Button(id)), "mouseUp");
                 r.needs_redraw = true;
                 r
@@ -738,6 +771,10 @@ impl Session {
         let Some(me) = self.me_for_id(id) else {
             return DispatchResult::nothing();
         };
+        // A switch toggles its state before its mouseUp runs (ADR-0015).
+        if matches!(me, Me::Button(_)) && message.eq_ignore_ascii_case("mouseup") {
+            self.toggle_if_switch(id);
+        }
         let mut r = self.dispatch_message(Some(me), message);
         r.needs_redraw = true;
         r
@@ -914,6 +951,10 @@ fn apply_button(b: &mut Button, p: &ObjectProps) {
     b.name = p.name.clone();
     b.title = p.title.clone();
     b.style = parse_style(&p.style);
+    // Only switches carry `checked`; the inspector can't turn a plain button into a switch.
+    if b.checked.is_some() {
+        b.checked = Some(p.checked);
+    }
     b.text_font = p.text_font.clone();
     b.text_size = p.text_size;
     b.text_style = p.text_style.clone();
@@ -1032,6 +1073,13 @@ fn field_cmd(f: &crate::model::Field) -> DrawCmd {
 }
 
 fn button_cmd(b: &crate::model::Button) -> DrawCmd {
+    // A switch (checked: Some) shows its state on the Canvas target with a ☑/☐ prefix; the
+    // native target renders a real Material Switch (ADR-0015).
+    let text = match b.checked {
+        Some(true) => format!("\u{2611} {}", b.label()),
+        Some(false) => format!("\u{2610} {}", b.label()),
+        None => b.label().to_string(),
+    };
     DrawCmd {
         kind: "button".to_string(),
         id: b.id,
@@ -1039,7 +1087,7 @@ fn button_cmd(b: &crate::model::Button) -> DrawCmd {
         y: b.rect.y,
         w: b.rect.w,
         h: b.rect.h,
-        text: b.label().to_string(),
+        text,
         style: format!("{:?}", b.style).to_lowercase(),
         visible: b.visible,
         locked: false,
@@ -1107,42 +1155,54 @@ fn field_node(f: &crate::model::Field) -> ViewNode {
 }
 
 /// Build a button [`ViewNode`]. `style` is the existing abstract `ButtonStyle` string
-/// (`rounded`/`rectangle`/`transparent`); the host maps it to a Material widget.
+/// (`rounded`/`rectangle`/`transparent`); the host maps it to a Material widget. A button with
+/// `checked: Some` is a **switch** (kind `"switch"` + a `checked` prop; ADR-0015).
 fn button_node(b: &crate::model::Button) -> ViewNode {
+    let mut props = vec![
+        Prop {
+            key: "title".to_string(),
+            value: b.label().to_string(),
+        },
+        Prop {
+            key: "style".to_string(),
+            value: format!("{:?}", b.style).to_lowercase(),
+        },
+        Prop {
+            key: "visible".to_string(),
+            value: b.visible.to_string(),
+        },
+        Prop {
+            key: "font".to_string(),
+            value: b.text_font.clone(),
+        },
+        Prop {
+            key: "size".to_string(),
+            value: b.text_size.to_string(),
+        },
+        Prop {
+            key: "textStyle".to_string(),
+            value: b.text_style.clone(),
+        },
+        Prop {
+            key: "align".to_string(),
+            value: b.text_align.clone(),
+        },
+    ];
+    if let Some(checked) = b.checked {
+        props.push(Prop {
+            key: "checked".to_string(),
+            value: checked.to_string(),
+        });
+    }
     ViewNode {
         id: b.id,
-        kind: "button".to_string(),
+        kind: if b.checked.is_some() {
+            "switch".to_string()
+        } else {
+            "button".to_string()
+        },
         child_ids: Vec::new(),
-        props: vec![
-            Prop {
-                key: "title".to_string(),
-                value: b.label().to_string(),
-            },
-            Prop {
-                key: "style".to_string(),
-                value: format!("{:?}", b.style).to_lowercase(),
-            },
-            Prop {
-                key: "visible".to_string(),
-                value: b.visible.to_string(),
-            },
-            Prop {
-                key: "font".to_string(),
-                value: b.text_font.clone(),
-            },
-            Prop {
-                key: "size".to_string(),
-                value: b.text_size.to_string(),
-            },
-            Prop {
-                key: "textStyle".to_string(),
-                value: b.text_style.clone(),
-            },
-            Prop {
-                key: "align".to_string(),
-                value: b.text_align.clone(),
-            },
-        ],
+        props,
     }
 }
 

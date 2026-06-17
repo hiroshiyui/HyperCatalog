@@ -474,6 +474,7 @@ impl<'s> Runtime<'s> {
                 Ok(match prop.as_str() {
                     "name" | "short name" | "long name" => Value::from_text(b.name.clone()),
                     "title" | "text" | "label" => Value::from_text(b.label().to_string()),
+                    "checked" => Value::Bool(b.checked.unwrap_or(false)),
                     "visible" => Value::Bool(b.visible),
                     "id" => Value::Number(b.id as f64),
                     "textfont" => Value::from_text(b.text_font.clone()),
@@ -551,6 +552,7 @@ impl<'s> Runtime<'s> {
                 match prop.as_str() {
                     "title" | "text" | "label" => button.title = v.as_text(),
                     "name" => button.name = v.as_text(),
+                    "checked" => button.checked = Some(v.as_bool()),
                     "visible" => button.visible = v.as_bool(),
                     "textfont" => button.text_font = v.as_text(),
                     "textsize" => {

@@ -38,6 +38,10 @@ pub struct Button {
     pub title: String,
     #[serde(default)]
     pub style: ButtonStyle,
+    /// When `Some`, this button is a **switch** (a Material toggle) holding a boolean; `None` is a
+    /// plain button (ADR-0015). A switch auto-toggles `checked` before its `mouseUp` runs.
+    #[serde(default)]
+    pub checked: Option<bool>,
     #[serde(default = "default_true")]
     pub visible: bool,
     /// HyperTalk source for this object's handlers.

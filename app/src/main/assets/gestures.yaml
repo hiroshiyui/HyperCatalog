@@ -81,6 +81,23 @@ cards:
       on longPress
         put "status: LONG-PRESSED" into field "status"
       end longPress
+  # A switch (ADR-0015): a button with `checked`. In native mode it's a Material Switch; on
+  # Canvas it shows ☑/☐. Toggling auto-flips `checked`, then the handler reads it.
+  - id: 14
+    name: wifi
+    rect:
+      x: 20
+      y: 250
+      w: 320
+      h: 40
+    title: Wi-Fi
+    checked: false
+    text_size: 18
+    script: |-
+      on mouseUp
+        if the checked of me then put "status: Wi-Fi ON" into field "status"
+        else put "status: Wi-Fi OFF" into field "status"
+      end mouseUp
 
       on doubleTap
         put "status: DOUBLE-TAPPED" into field "status"

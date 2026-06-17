@@ -2,6 +2,7 @@ package org.ghostsinthelab.app.hypercatalog
 
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.isToggleable
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -72,6 +73,35 @@ class NativeRenderInstrumentedTest {
               children:
                 - { mode: row, padding: 4, children: [10, 20] }
     """.trimIndent()
+
+    /** A switch (ADR-0015): a button with `checked`. Tapping it auto-toggles in the core and the
+     *  handler reads the new state. */
+    private val switchYaml = """
+        name: SwitchITest
+        width: 100
+        height: 100
+        cards:
+          - id: 1
+            name: One
+            fields:
+              - { id: 10, name: out, rect: { x: 0, y: 0, w: 100, h: 20 }, text: "off", locked: true }
+            buttons:
+              - { id: 20, name: wifi, rect: { x: 0, y: 30, w: 100, h: 20 }, title: "Wi-Fi", checked: false,
+                  script: "on mouseUp\n  if the checked of me then put \"on\" into field \"out\" else put \"off\" into field \"out\"\nend mouseUp" }
+    """.trimIndent()
+
+    @Test
+    fun tapping_a_switch_toggles_and_runs_its_handler() {
+        val stack = uniffi.hyperffi.HyperStack.loadYaml(switchYaml)
+        try {
+            compose.setContent { MaterialTheme { NativeCardScreen(stack) { _, _ -> } } }
+            compose.onNodeWithText("off").assertIsDisplayed()
+            compose.onNode(isToggleable()).performClick() // the Material Switch
+            compose.onNodeWithText("on").assertIsDisplayed()
+        } finally {
+            stack.destroy()
+        }
+    }
 
     @Test
     fun grouped_layout_renders_nested() {

@@ -521,23 +521,32 @@ class MainActivity : AppCompatActivity(), CardView.Callbacks {
         var styleSpinner: Spinner? = null
         var textInput: EditText? = null
         var lockedCheck: CheckBox? = null
+        var checkedCheck: CheckBox? = null
 
-        if (kind == "button") {
+        if (kind == "button" || kind == "switch") {
             titleInput = textField(props.title)
-            container.addView(label("Title"))
+            container.addView(label(if (kind == "switch") "Label" else "Title"))
             container.addView(titleInput)
 
-            val styles = listOf("rounded", "rectangle", "transparent")
-            styleSpinner = Spinner(this).apply {
-                adapter = ArrayAdapter(
-                    this@MainActivity,
-                    android.R.layout.simple_spinner_dropdown_item,
-                    styles,
-                )
-                setSelection(styles.indexOf(props.style).coerceAtLeast(0))
+            if (kind == "switch") {
+                checkedCheck = CheckBox(this).apply {
+                    text = "Checked"
+                    isChecked = props.checked
+                }
+                container.addView(checkedCheck)
+            } else {
+                val styles = listOf("rounded", "rectangle", "transparent")
+                styleSpinner = Spinner(this).apply {
+                    adapter = ArrayAdapter(
+                        this@MainActivity,
+                        android.R.layout.simple_spinner_dropdown_item,
+                        styles,
+                    )
+                    setSelection(styles.indexOf(props.style).coerceAtLeast(0))
+                }
+                container.addView(label("Style"))
+                container.addView(styleSpinner)
             }
-            container.addView(label("Style"))
-            container.addView(styleSpinner)
         } else {
             textInput = textField(props.text)
             container.addView(label("Text"))
@@ -601,6 +610,7 @@ class MainActivity : AppCompatActivity(), CardView.Callbacks {
                     style = (styleSpinner?.selectedItem as? String) ?: props.style,
                     text = textInput?.text?.toString() ?: props.text,
                     locked = lockedCheck?.isChecked ?: props.locked,
+                    checked = checkedCheck?.isChecked ?: props.checked,
                     textSize = sizeInput.text.toString().toFloatOrNull() ?: 16f,
                     textFont = (fontSpinner.selectedItem as String).let { if (it == "default") "" else it },
                     textAlign = alignSpinner.selectedItem as String,

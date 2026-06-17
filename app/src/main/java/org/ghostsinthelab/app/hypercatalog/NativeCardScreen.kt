@@ -10,6 +10,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -19,6 +20,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import uniffi.hyperffi.DispatchResult
@@ -140,6 +142,18 @@ private fun RenderNode(
                 "rectangle" -> Button(onClick = click, modifier = modifier) { Text(label) }
                 "transparent" -> TextButton(onClick = click, modifier = modifier) { Text(label) }
                 else -> OutlinedButton(onClick = click, modifier = modifier) { Text(label) }
+            }
+        }
+
+        "switch" -> {
+            // A switch toggles in the core (auto-toggle before mouseUp); dispatch and re-read.
+            val checked = node.prop("checked") == "true"
+            Row(modifier, verticalAlignment = Alignment.CenterVertically) {
+                Text(node.prop("title"), modifier = Modifier.weight(1f))
+                Switch(
+                    checked = checked,
+                    onCheckedChange = { onResult(stack.dispatch(node.id, "mouseUp", emptyList())) },
+                )
             }
         }
 

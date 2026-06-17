@@ -81,10 +81,11 @@ decisions rather than describing shipped behavior. Full vision in
 
 **Started:** ADR-0008 has shipped — the core emits a semantic `ViewTree` consumed by a **Jetpack
 Compose Material 3** renderer (`NativeCardScreen`) beside the classic Canvas player. *Slice 1* (the
-button/field set) and *slice 2* (nested **layout** groups — [ADR-0014](adr/0014-layout-model-group-containers.md):
-`row`/`column` containers + per-object `weight`, so native mode reflows into a grid) are done. New
-object kinds, the rest of the layout model (`grid`/`free`/insets), Material roles/theming, and
-lifecycle messages remain deferred follow-on ADRs.
+button/field set), *slice 2* (nested **layout** groups — [ADR-0014](adr/0014-layout-model-group-containers.md):
+`row`/`column` containers + per-object `weight`, so native mode reflows into a grid), and *slice 3*
+(the **`switch`** kind — [ADR-0015](adr/0015-switch-object-kind.md): a button with `checked`,
+rendered as a Material `Switch`) are done. In progress: the rest of the layout model
+(`grid`/`free`/`constraints`/insets), Material roles/`textRole`/theme, and lifecycle messages.
 
 ## Non-goals (for now)
 
@@ -107,3 +108,4 @@ Rust-native — see [ADR-0001](adr/0001-rust-native-hypertalk.md).
 - [ADR-0012 — UniFFI bridge](adr/0012-uniffi-bridge.md) *(supersedes ADR-0002)*
 - [ADR-0013 — Persistence layering](adr/0013-persistence-layering.md)
 - [ADR-0014 — Layout model: group containers](adr/0014-layout-model-group-containers.md)
+- [ADR-0015 — The `switch` object kind](adr/0015-switch-object-kind.md)

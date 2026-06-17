@@ -12,6 +12,16 @@ fn prop(n: &ViewNode, key: &str) -> String {
         .unwrap_or_default()
 }
 
+/// A node's prop by object id, re-rendering the current view tree (for switch/state assertions).
+fn prop_node(s: &Session, id: u32, key: &str) -> String {
+    let t = s.render_view_tree();
+    t.nodes
+        .iter()
+        .find(|n| n.id == id)
+        .map(|n| prop(n, key))
+        .unwrap_or_default()
+}
+
 /// A minimal two-card stack used across tests.
 fn sample_json() -> String {
     r#"{
@@ -257,6 +267,66 @@ fn weight_get_set_via_script() {
         .find(|d| d.id == 10)
         .unwrap();
     assert_eq!(counter.text, "2");
+}
+
+// --- ADR-0015 switch object kind (a button with `checked`) ---
+
+/// A one-card stack with a switch (button id 20 carrying `checked`) and a readout field 10.
+fn switch_yaml() -> String {
+    r#"
+name: Sw
+cards:
+  - id: 1
+    name: One
+    fields:
+      - { id: 10, name: out, rect: { x: 0, y: 0, w: 10, h: 10 }, text: "" }
+    buttons:
+      - { id: 20, name: wifi, rect: { x: 0, y: 0, w: 10, h: 10 }, title: "Wi-Fi", checked: false,
+          script: "on mouseUp\n  if the checked of me then put \"on\" into field \"out\" else put \"off\" into field \"out\"\nend mouseUp" }
+"#
+    .to_string()
+}
+
+#[test]
+fn switch_projects_as_switch_kind() {
+    let s = Session::load_from_yaml(&switch_yaml()).unwrap();
+    let t = s.render_view_tree();
+    let sw = t.nodes.iter().find(|n| n.id == 20).unwrap();
+    assert_eq!(sw.kind, "switch");
+    assert_eq!(prop(sw, "checked"), "false");
+    // A plain button (no `checked`) stays kind "button".
+    let plain = Session::load_from_json(&sample_json())
+        .unwrap()
+        .render_view_tree();
+    assert_eq!(
+        plain.nodes.iter().find(|n| n.id == 20).unwrap().kind,
+        "button"
+    );
+}
+
+#[test]
+fn switch_auto_toggles_before_handler() {
+    let mut s = Session::load_from_yaml(&switch_yaml()).unwrap();
+    // First tap: checked flips false→true *before* mouseUp, so the script reads "on".
+    let r = s.dispatch_by_id(20, "mouseUp", &[]);
+    assert!(r.error.is_none(), "error: {:?}", r.error);
+    assert_eq!(prop_node(&s, 20, "checked"), "true");
+    assert_eq!(field_text(&s, 10), "on");
+    // Second tap: true→false, script reads "off".
+    s.dispatch_by_id(20, "mouseUp", &[]);
+    assert_eq!(prop_node(&s, 20, "checked"), "false");
+    assert_eq!(field_text(&s, 10), "off");
+}
+
+#[test]
+fn the_checked_of_is_scriptable() {
+    let mut s = Session::load_from_yaml(&switch_yaml()).unwrap();
+    s.set_object_script(
+        10,
+        "on mouseUp\n  set the checked of button \"wifi\" to true\nend mouseUp",
+    );
+    s.dispatch_by_id(10, "mouseUp", &[]);
+    assert_eq!(prop_node(&s, 20, "checked"), "true");
 }
 
 #[test]

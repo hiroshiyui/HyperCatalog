@@ -56,8 +56,10 @@ Android (Kotlin host, thin)                    rust/ workspace
     **group** nodes referencing objects by id, with per-object `weight` + group `padding`) makes
     native mode reflow into a grid; `ViewTree` carries `layout`/`padding`, group `ViewNode`s populate
     `child_ids`. It's an **overlay** — the Canvas path/hit-test/dispatch are untouched and use the
-    absolute `rect`s. Still deferred: `grid`/`free` modes, Material roles/theming, new kinds,
-    lifecycle messages.
+    absolute `rect`s. **Switch kind (ADR-0015):** a `Button` with `checked: Option<bool>` projects
+    as `kind:"switch"`, rendered as a Material `Switch` (Canvas: ☑/☐ prefix); the core auto-toggles
+    `checked` before `mouseUp`. Still deferred: `grid`/`free`/`constraints` modes, Material
+    roles/theming, more kinds, lifecycle messages.
 - **Persistence** is layered by *what the data is* (ADR-0013): **document content vs. session view
   state**.
   - *Document content* → **YAML files**, end to end (ADR-0011). Bundled assets are `assets/*.yaml`
