@@ -1,8 +1,8 @@
 # ADR-0008 — Native-view rendering (semantic view tree)
 
-- Status: **Proposed** (gating decision for the Phase 5 Android-native dialect; depends on the
-  open questions below — not yet scheduled or implemented)
-- Date: 2026-06-16
+- Status: **Accepted** — slice 1 implemented (the existing button/field set, rendered via Jetpack
+  Compose). Open questions 1 and 4 are resolved (below); 2 and 3 remain open.
+- Date: 2026-06-16 (accepted 2026-06-17)
 - Related: [ADR-0001](0001-rust-native-hypertalk.md) (Rust-native language),
   [ADR-0002](0002-json-string-jni-bridge.md) (host bridge — this evolves its payload),
   [ADR-0006](0006-geometry-properties.md) / [ADR-0007](0007-text-styling.md) (properties this
@@ -34,9 +34,14 @@ the host instantiate real Material **Views/Composables** from it. The classic Ca
 Concretely, the contract is **intent, not widgets**:
 
 - The core emits a tree of nodes, each with a **stable id**, a **`kind`** (e.g. `button`, `field`,
-  `switch`, `image`, `column`), a flat **property bag**, and **children**. It is serde-serialized
-  JSON over the same opaque-handle bridge as `RenderList` — a new `Session` method (conceptually
-  `render_view_tree`) sitting beside `render_current_card`, selected by a render *mode*.
+  `switch`, `image`, `column`), a flat **property bag**, and **children**. It crosses as **typed
+  UniFFI records** (ADR-0012 — *not* JSON; the original "serde JSON over the opaque-handle bridge"
+  framing predates the UniFFI migration). A new `Session::render_view_tree` sits beside
+  `render_current_card`, selected by a render *mode*. **Implementation note:** the tree is **flat**
+  — `ViewTree { root_ids, nodes }` with `ViewNode { id, kind, props, child_ids }` and ordered
+  `Prop { key, value }` — rather than a recursive record, so it crosses UniFFI cleanly and the
+  desktop dump stays deterministic; layout containers later populate `child_ids` without a shape
+  change. Slice 1 is one level deep (no containers yet).
 - The tree carries **no Android types, no measured geometry, no pixels, no layout math**. The core
   says *what the UI is and what it means*; the **host decides how to realize it** — widget class,
   density (dp), insets, theming, reconciliation.
@@ -69,10 +74,13 @@ These are the explicit rules that make "native rendering" not leak the platform 
 ### Realization layer (host side)
 
 The choice of **Android Views vs Jetpack Compose**, and the tree-diffing/reconciliation strategy
-(keyed by stable node id), are **host concerns deliberately left out of this ADR** — they do not
-affect the core contract. Compose maps more naturally onto a declarative tree; Views are more
-battle-tested for script-mutated dynamic trees. This is an open question (below) to settle in a
-host-side follow-up, not in the platform-agnostic core.
+(keyed by stable node id), are **host concerns** that do not affect the core contract. **Resolved:
+Jetpack Compose (Material 3).** Compose maps naturally onto the declarative tree, and its
+recomposition does the id-keyed reconciliation *for free* — there is no hand-written host diffing
+(see the struck negative below). The host wraps each node in `key(node.id)` and re-fetches the tree
+after a dispatch; `NativeCardScreen` realizes `button → Button/OutlinedButton/TextButton` (by the
+abstract `style` value) and `field → OutlinedTextField`. The classic Canvas `CardView` remains for
+the retro mode, selected by a host-side render toggle.
 
 ## Consequences
 
@@ -82,8 +90,10 @@ host-side follow-up, not in the platform-agnostic core.
   **payload vocabulary**, not a new runtime (ADR-0001 holds) nor a new bridge (ADR-0002 holds).
 - **Positive:** Keeping the Canvas target makes "classic" vs "material" a per-stack/per-build
   **render mode**; classic JSON stacks still load and play unchanged.
-- **Negative:** A view tree needs **reconciliation/diffing** on the host (rebuild vs patch by id) —
-  materially more host complexity than blitting a flat draw list.
+- ~~**Negative:** A view tree needs **reconciliation/diffing** on the host (rebuild vs patch by
+  id) — materially more host complexity than blitting a flat draw list.~~ **Dissolved by the
+  Compose choice:** recomposition keyed by node id reconciles automatically; the host writes no
+  diffing logic.
 - **Negative:** Inverts the event model — the host gains an **id-addressed dispatch** path, and the
   core grows a second dispatch entry point beside `dispatch_touch`.
 - **Negative / to revisit:** ADR-0002 assumes the bridge is **event-driven, not per-frame**.
@@ -93,15 +103,19 @@ host-side follow-up, not in the platform-agnostic core.
 - **Negative:** `model.rs` and the property set grow (object-kind taxonomy, roles, layout params);
   must stay additive with serde defaults so existing stacks load.
 
-## Open questions (gating acceptance)
+## Open questions
 
-1. **Views or Compose** as the host realization layer, and the diffing strategy?
+1. ~~**Views or Compose** as the host realization layer, and the diffing strategy?~~ **Resolved:
+   Jetpack Compose** — recomposition is the diffing strategy (keyed by node id).
 2. Does Material motion / async data force the bridge to grow an **async channel**, changing the
-   marshalling choice for hot paths (revisiting ADR-0002)?
+   marshalling choice for hot paths? *(Still open.)*
 3. Can classic stacks (rounded/rectangle buttons, absolute rects) render in the Material target
-   with **sensible defaults**, or is a translation/compat layer required?
-4. Migration order: ship the native renderer for the **existing button/field set first** (proving
-   the contract end-to-end) before adding new object kinds?
+   with **sensible defaults**, or is a translation/compat layer required? *(Partly answered by
+   slice 1: button `style` maps to filled/outlined/text widgets with an outlined fallback, and a
+   simple vertical `Column` stands in until the layout model lands. A fuller compat story waits on
+   the layout ADR.)*
+4. ~~Migration order: ship the native renderer for the **existing button/field set first**?~~
+   **Resolved: yes** — slice 1 does exactly this, proving the contract before any new kinds.
 
 ## Follow-on ADRs (when scheduled)
 

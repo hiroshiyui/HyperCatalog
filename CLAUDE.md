@@ -32,8 +32,11 @@ Android (Kotlin host, thin)                    rust/ workspace
     runs scripts, returns `DispatchResult` with `host_cmds`/`focus_field`/`card_changed`),
     `dispatch_gesture` (post-WIMP touchscreen gestures — `tap`/`doubleTap`/`longPress`/`swipe*`
     — sent as messages that bubble the same path; never focuses a field), `set_field_text`,
-    `to_yaml`. `hyperffi/bridge.rs` re-exposes these as a UniFFI `HyperStack` object (typed
-    records, `i32` ids); the Kotlin bindings are generated, so there is no hand-written JNI.
+    `to_yaml`, plus the **native render target** (ADR-0008): `render_view_tree` (→ a flat,
+    geometry-free `ViewTree` of abstract `ViewNode`s, the structural sibling of `render_current_card`)
+    and `dispatch_by_id` (id-addressed semantic dispatch, the sibling of `dispatch_touch` — both
+    re-enter the same message path). `hyperffi/bridge.rs` re-exposes these as a UniFFI `HyperStack`
+    object (typed records, `i32` ids); the Kotlin bindings are generated, so there is no hand-written JNI.
 - **Message path** (HyperCard semantics, in `session::collect_path`): a tapped object's script
   runs first, then card → background → stack; the first matching handler wins. **Background
   objects' own scripts must be searched too** — a past bug only looked at the card layer. Touch
@@ -42,8 +45,15 @@ Android (Kotlin host, thin)                    rust/ workspace
   `go [to] stack "Name"` — the core has no asset access) come back as `HostEffect` values for the
   host to perform; the host also performs the EditText overlay for
   editable (unlocked) fields when `dispatch_touch` returns `focus_field`.
-- **Rendering**: the core emits card-coordinate draw primitives; `CardView` letterbox-scales
-  them onto a Canvas and maps touches back. Redraws are event-driven (taps), not per-frame.
+- **Rendering — two targets** (ADR-0008), both fed by the one `Session`, host-selectable:
+  - *Classic* (default): the core emits card-coordinate draw primitives (`RenderList`); `CardView`
+    letterbox-scales them onto a Canvas and maps touches back. Redraws are event-driven, not per-frame.
+  - *Native*: the core emits a semantic `ViewTree` (abstract kinds/props, **no geometry**); the host
+    realizes it as real **Jetpack Compose Material 3** widgets (`NativeCardScreen`), with id-addressed
+    `dispatch` instead of coordinate hit-testing. Reconciliation is free via recomposition keyed by
+    node id. A `MainActivity` toggle swaps a `ComposeView` for the `CardView`; authoring stays
+    Canvas-only. **Slice 1** covers the existing button/field set only — new kinds, Material
+    roles/layout/theming, and lifecycle messages are deferred follow-on ADRs.
 - **Persistence** is layered by *what the data is* (ADR-0013): **document content vs. session view
   state**.
   - *Document content* → **YAML files**, end to end (ADR-0011). Bundled assets are `assets/*.yaml`

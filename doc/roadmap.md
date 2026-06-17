@@ -75,9 +75,14 @@ asset.
 A longer-horizon reference target: a HyperTalk dialect whose primitives are Android's, not 1987
 Mac's — Material components via **native-view rendering** (core emits a view tree, host builds
 real Material Views/Composables), the Activity lifecycle as system messages, a responsive dp
-layout system, and platform reach (permissions, intents, async, accessibility). Not scheduled;
-it steers decisions rather than describing shipped behavior. Full vision in
+layout system, and platform reach (permissions, intents, async, accessibility). It steers
+decisions rather than describing shipped behavior. Full vision in
 [`doc/design/android-hypertalk-dialect.md`](design/android-hypertalk-dialect.md).
+
+**Started:** ADR-0008 **slice 1** has shipped — the core emits a semantic `ViewTree` consumed by a
+**Jetpack Compose Material 3** renderer (`NativeCardScreen`) beside the classic Canvas player, for
+the existing button/field set. New object kinds, Material roles/layout/theming, and lifecycle
+messages remain deferred follow-on ADRs.
 
 ## Non-goals (for now)
 
@@ -93,7 +98,7 @@ Rust-native — see [ADR-0001](adr/0001-rust-native-hypertalk.md).
 - [ADR-0005 — On-device object authoring](adr/0005-object-authoring.md)
 - [ADR-0006 — HyperTalk geometry properties](adr/0006-geometry-properties.md)
 - [ADR-0007 — Text styling](adr/0007-text-styling.md)
-- [ADR-0008 — Native-view rendering](adr/0008-native-view-rendering.md) *(proposed)*
+- [ADR-0008 — Native-view rendering](adr/0008-native-view-rendering.md) *(accepted; slice 1 — Compose)*
 - [ADR-0009 — Touchscreen gestures](adr/0009-touchscreen-gestures.md)
 - [ADR-0010 — Modern UI considerations](adr/0010-modern-ui-considerations.md)
 - [ADR-0011 — YAML stack files](adr/0011-yaml-stack-files.md)
