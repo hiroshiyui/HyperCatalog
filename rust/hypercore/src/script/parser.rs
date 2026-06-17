@@ -36,6 +36,15 @@ impl Parser {
         matches!(self.cur(), Tok::Newline)
     }
 
+    /// True if the token `off` past the cursor ends the statement (newline or EOF) — used to tell
+    /// `get url <expr>` (a fetch) from a bare `get url` (a variable read).
+    fn ends_statement_at(&self, off: usize) -> bool {
+        matches!(
+            self.toks.get(self.pos + off),
+            Some(Tok::Newline) | Some(Tok::Eof) | None
+        )
+    }
+
     fn advance(&mut self) -> Tok {
         let t = self.toks[self.pos].clone();
         if self.pos < self.toks.len() - 1 {
@@ -168,8 +177,15 @@ impl Parser {
         let stmt = match w.as_str() {
             "put" => self.parse_put()?,
             "get" => {
-                self.advance();
-                Stmt::Get(self.parse_expr()?)
+                self.advance(); // 'get'
+                // `get url <expr>` (ADR-0025) is a network fetch — but only when `url` is followed
+                // by an expression, so a plain `get url` / `get <var>` (variable read) is untouched.
+                if self.is_kw("url") && !self.ends_statement_at(1) {
+                    self.advance(); // 'url'
+                    Stmt::Send("geturl".to_string(), vec![self.parse_expr()?])
+                } else {
+                    Stmt::Get(self.parse_expr()?)
+                }
             }
             "set" => self.parse_set()?,
             "go" => self.parse_go()?,
@@ -189,6 +205,45 @@ impl Parser {
                 self.advance(); // 'open'
                 self.eat_kw("url");
                 Stmt::Send("openurl".to_string(), vec![self.parse_expr()?])
+            }
+            // `ask permission <expr>` (ADR-0025). The guard keeps a bare `ask` available as a
+            // custom message (a future `ask` dialog) by falling through to `parse_send`.
+            "ask" if self.word_at(1).as_deref() == Some("permission") => {
+                self.advance(); // 'ask'
+                self.advance(); // 'permission'
+                Stmt::Send("askpermission".to_string(), vec![self.parse_expr()?])
+            }
+            // `snackbar <text> [action <label> send <message>]` (ADR-0025).
+            "snackbar" => {
+                self.advance(); // 'snackbar'
+                let text = self.parse_expr()?;
+                let (action, message) = if self.eat_kw("action") {
+                    let label = self.parse_expr()?;
+                    let msg = if self.eat_kw("send") {
+                        self.parse_expr()?
+                    } else {
+                        Expr::Str(String::new())
+                    };
+                    (label, msg)
+                } else {
+                    (Expr::Str(String::new()), Expr::Str(String::new()))
+                };
+                Stmt::Send("snackbar".to_string(), vec![text, action, message])
+            }
+            // `notify <title>, <body> [send <message>]` (ADR-0025).
+            "notify" => {
+                self.advance(); // 'notify'
+                let title = self.parse_expr()?;
+                if matches!(self.cur(), Tok::Comma) {
+                    self.advance();
+                }
+                let body = self.parse_expr()?;
+                let message = if self.eat_kw("send") {
+                    self.parse_expr()?
+                } else {
+                    Expr::Str(String::new())
+                };
+                Stmt::Send("notify".to_string(), vec![title, body, message])
             }
             _ => self.parse_send()?,
         };

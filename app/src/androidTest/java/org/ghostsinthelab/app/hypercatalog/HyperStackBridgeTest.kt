@@ -115,4 +115,47 @@ class HyperStackBridgeTest {
             s.destroy()
         }
     }
+
+    /** The async-request HostEffects (ADR-0025) cross the bridge as their typed variants — a button's
+     *  `get url` surfaces as [uniffi.hyperffi.HostEffect.GetUrl] with the evaluated address. */
+    @Test
+    fun get_url_effect_crosses_the_bridge() {
+        val src = """
+            name: NET
+            cards:
+              - id: 1
+                name: One
+                buttons:
+                  - { id: 20, name: go, rect: { x: 0, y: 0, w: 10, h: 10 },
+                      script: "on mouseUp\n  get url \"https://example.com\"\nend mouseUp" }
+        """.trimIndent()
+        withStack(src) { s ->
+            val r = s.dispatch(20, "mouseUp", emptyList())
+            val effect = r.hostCmds.single()
+            assertEquals(true, effect is uniffi.hyperffi.HostEffect.GetUrl)
+            assertEquals("https://example.com", (effect as uniffi.hyperffi.HostEffect.GetUrl).url)
+        }
+    }
+
+    /** A `snackbar … action … send …` crosses as the multi-field [uniffi.hyperffi.HostEffect.Snackbar]. */
+    @Test
+    fun snackbar_effect_crosses_the_bridge() {
+        val src = """
+            name: SB
+            cards:
+              - id: 1
+                name: One
+                buttons:
+                  - { id: 20, name: go, rect: { x: 0, y: 0, w: 10, h: 10 },
+                      script: "on mouseUp\n  snackbar \"Deleted\" action \"Undo\" send \"undoDelete\"\nend mouseUp" }
+        """.trimIndent()
+        withStack(src) { s ->
+            val effect = s.dispatch(20, "mouseUp", emptyList()).hostCmds.single()
+            assertEquals(true, effect is uniffi.hyperffi.HostEffect.Snackbar)
+            val sb = effect as uniffi.hyperffi.HostEffect.Snackbar
+            assertEquals("Deleted", sb.text)
+            assertEquals("Undo", sb.action)
+            assertEquals("undoDelete", sb.message)
+        }
+    }
 }

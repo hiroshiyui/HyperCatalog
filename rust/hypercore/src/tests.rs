@@ -1269,6 +1269,109 @@ fn toast_emits_host_effect() {
     assert_eq!(r.host_cmds, vec![HostEffect::Toast("saved".to_string())]);
 }
 
+// --- ADR-0025 async platform facilities (get url / ask permission / snackbar / notify) ---
+
+#[test]
+fn get_url_emits_host_effect() {
+    let mut s = Session::load_from_json(&sample_json()).unwrap();
+    assert!(s.set_object_script(
+        20,
+        "on mouseUp\n  get url \"https://example.com\"\nend mouseUp"
+    ));
+    let r = s.dispatch_touch(20.0, 120.0, "up");
+    assert!(r.error.is_none(), "error: {:?}", r.error);
+    assert_eq!(
+        r.host_cmds,
+        vec![HostEffect::GetUrl("https://example.com".to_string())]
+    );
+}
+
+#[test]
+fn plain_get_is_not_a_fetch() {
+    // The `get url` sugar must not hijack ordinary `get`: `get the short name of this card` and a
+    // bare `get url` (a variable read) stay `Stmt::Get` and emit no `GetUrl` host effect.
+    let mut s = Session::load_from_json(&sample_json()).unwrap();
+    assert!(s.set_object_script(
+        20,
+        "on mouseUp\n  get the short name of this card\n  get url\nend mouseUp"
+    ));
+    let r = s.dispatch_touch(20.0, 120.0, "up");
+    assert!(r.error.is_none(), "error: {:?}", r.error);
+    assert!(
+        !r.host_cmds
+            .iter()
+            .any(|c| matches!(c, HostEffect::GetUrl(_))),
+        "plain get must not fetch: {:?}",
+        r.host_cmds
+    );
+}
+
+#[test]
+fn ask_permission_emits_host_effect() {
+    let mut s = Session::load_from_json(&sample_json()).unwrap();
+    assert!(s.set_object_script(20, "on mouseUp\n  ask permission \"camera\"\nend mouseUp"));
+    let r = s.dispatch_touch(20.0, 120.0, "up");
+    assert!(r.error.is_none(), "error: {:?}", r.error);
+    assert_eq!(
+        r.host_cmds,
+        vec![HostEffect::AskPermission("camera".to_string())]
+    );
+}
+
+#[test]
+fn snackbar_with_action_emits_host_effect() {
+    let mut s = Session::load_from_json(&sample_json()).unwrap();
+    assert!(s.set_object_script(
+        20,
+        "on mouseUp\n  snackbar \"Deleted\" action \"Undo\" send \"undoDelete\"\nend mouseUp"
+    ));
+    let r = s.dispatch_touch(20.0, 120.0, "up");
+    assert!(r.error.is_none(), "error: {:?}", r.error);
+    assert_eq!(
+        r.host_cmds,
+        vec![HostEffect::Snackbar(
+            "Deleted".to_string(),
+            "Undo".to_string(),
+            "undoDelete".to_string()
+        )]
+    );
+}
+
+#[test]
+fn bare_snackbar_has_empty_action() {
+    let mut s = Session::load_from_json(&sample_json()).unwrap();
+    assert!(s.set_object_script(20, "on mouseUp\n  snackbar \"Saved\"\nend mouseUp"));
+    let r = s.dispatch_touch(20.0, 120.0, "up");
+    assert!(r.error.is_none(), "error: {:?}", r.error);
+    assert_eq!(
+        r.host_cmds,
+        vec![HostEffect::Snackbar(
+            "Saved".to_string(),
+            String::new(),
+            String::new()
+        )]
+    );
+}
+
+#[test]
+fn notify_emits_host_effect() {
+    let mut s = Session::load_from_json(&sample_json()).unwrap();
+    assert!(s.set_object_script(
+        20,
+        "on mouseUp\n  notify \"Done\", \"Your export is ready\"\nend mouseUp"
+    ));
+    let r = s.dispatch_touch(20.0, 120.0, "up");
+    assert!(r.error.is_none(), "error: {:?}", r.error);
+    assert_eq!(
+        r.host_cmds,
+        vec![HostEffect::Notify(
+            "Done".to_string(),
+            "Your export is ready".to_string(),
+            String::new()
+        )]
+    );
+}
+
 #[test]
 fn background_button_script_runs() {
     // A nav button living on the shared background must have its own handler run.

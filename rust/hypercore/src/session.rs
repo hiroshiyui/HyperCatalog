@@ -148,6 +148,14 @@ pub enum HostEffect {
     Share(String),
     /// `toast "…"` — the host shows a brief toast (ADR-0023).
     Toast(String),
+    /// `get url "…"` — the host fetches the URL and delivers `on responseReceived data` (ADR-0025).
+    GetUrl(String),
+    /// `ask permission "name"` — the host requests it and delivers `on permissionResult name, granted`.
+    AskPermission(String),
+    /// `snackbar text [action label send msg]` — a Material snackbar; its action fires `msg` (ADR-0025).
+    Snackbar(String, String, String),
+    /// `notify title, body [send msg]` — a notification; tapping it fires `msg` (ADR-0025).
+    Notify(String, String, String),
 }
 
 /// Result of dispatching a touch back to the host.
@@ -1497,5 +1505,9 @@ fn host_effect(c: &HostCmd) -> HostEffect {
         HostCmd::OpenUrl(s) => HostEffect::OpenUrl(s.clone()),
         HostCmd::Share(s) => HostEffect::Share(s.clone()),
         HostCmd::Toast(s) => HostEffect::Toast(s.clone()),
+        HostCmd::GetUrl(s) => HostEffect::GetUrl(s.clone()),
+        HostCmd::AskPermission(s) => HostEffect::AskPermission(s.clone()),
+        HostCmd::Snackbar(t, a, m) => HostEffect::Snackbar(t.clone(), a.clone(), m.clone()),
+        HostCmd::Notify(t, b, m) => HostEffect::Notify(t.clone(), b.clone(), m.clone()),
     }
 }

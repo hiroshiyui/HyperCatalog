@@ -174,14 +174,42 @@ impl From<hypercore::ViewTree> for ViewTree {
 /// A side effect the host performs after a dispatch — mirrors `hypercore::HostEffect`.
 #[derive(uniffi::Enum)]
 pub enum HostEffect {
-    Answer { text: String },
-    Message { text: String },
+    Answer {
+        text: String,
+    },
+    Message {
+        text: String,
+    },
     Beep,
-    GoStack { name: String },
+    GoStack {
+        name: String,
+    },
     ShowStacks,
-    OpenUrl { url: String },
-    Share { text: String },
-    Toast { text: String },
+    OpenUrl {
+        url: String,
+    },
+    Share {
+        text: String,
+    },
+    Toast {
+        text: String,
+    },
+    GetUrl {
+        url: String,
+    },
+    AskPermission {
+        name: String,
+    },
+    Snackbar {
+        text: String,
+        action: String,
+        message: String,
+    },
+    Notify {
+        title: String,
+        body: String,
+        message: String,
+    },
 }
 
 impl From<hypercore::HostEffect> for HostEffect {
@@ -195,6 +223,18 @@ impl From<hypercore::HostEffect> for HostEffect {
             hypercore::HostEffect::OpenUrl(url) => HostEffect::OpenUrl { url },
             hypercore::HostEffect::Share(text) => HostEffect::Share { text },
             hypercore::HostEffect::Toast(text) => HostEffect::Toast { text },
+            hypercore::HostEffect::GetUrl(url) => HostEffect::GetUrl { url },
+            hypercore::HostEffect::AskPermission(name) => HostEffect::AskPermission { name },
+            hypercore::HostEffect::Snackbar(text, action, message) => HostEffect::Snackbar {
+                text,
+                action,
+                message,
+            },
+            hypercore::HostEffect::Notify(title, body, message) => HostEffect::Notify {
+                title,
+                body,
+                message,
+            },
         }
     }
 }

@@ -53,7 +53,10 @@ Handlers `on <msg> [param, param…] ... end <msg>` (`mouseUp`, `openCard`, `ope
 names) — **handler parameters** bind positional message arguments (ADR-0024); commands `put`,
 `get`, `set ... of ... to`, `go [to] next|previous|first|last|card "x"|card N|stack "x"`, `answer`,
 `beep`, `show stacks`, `open url <expr>`, `share <expr>`, `toast <expr>` (host-realized escape hatches,
-ADR-0023), `add/subtract/multiply/divide`; `if/then/else/end if`; `repeat with`/`repeat N times`;
+ADR-0023); **async facilities** (ADR-0025) `get url <expr>` (→ `on responseReceived data, status, url`),
+`ask permission <expr>` (→ `on permissionResult name, granted`), `snackbar <text> [action <label> send
+<msg>]`, `notify <title>, <body> [send <msg>]`; `add/subtract/multiply/divide`; `if/then/else/end if`;
+`repeat with`/`repeat N times`;
 expressions with `& && + - * / mod`, comparisons, `the <prop> of <object>`,
 `the number of cards`, `length()`, `field "name"` contents. Message path:
 object → card → background → stack.

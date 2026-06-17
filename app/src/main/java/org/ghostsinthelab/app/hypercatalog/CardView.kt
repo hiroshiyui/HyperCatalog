@@ -29,8 +29,17 @@ data class DrawItem(
     val textAlign: String,
 )
 
-/** A host effect emitted by a script (`answer`, `beep`, message-box `put`). */
-data class HostEffect(val type: String, val text: String)
+/**
+ * A host effect emitted by a script (`answer`, `beep`, message-box `put`, async requests…). Most
+ * effects carry a single [text]; the multi-arg async facilities (ADR-0025) use [arg2]/[arg3]
+ * (snackbar = text/actionLabel/actionMessage; notify = title/body/tapMessage).
+ */
+data class HostEffect(
+    val type: String,
+    val text: String,
+    val arg2: String = "",
+    val arg3: String = "",
+)
 
 /**
  * A HyperCard-style card surface. It renders the current card's [DrawItem]s onto a Canvas

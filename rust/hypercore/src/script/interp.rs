@@ -32,6 +32,18 @@ pub enum HostCmd {
     Share(String),
     /// `toast "…"` — the host shows a brief toast (ADR-0023).
     Toast(String),
+    /// `get url "…"` — the host fetches the URL off-thread and delivers the body back via
+    /// `on responseReceived data` (ADR-0025).
+    GetUrl(String),
+    /// `ask permission "name"` — the host requests the runtime permission and delivers the outcome
+    /// via `on permissionResult name, granted` (ADR-0025).
+    AskPermission(String),
+    /// `snackbar text [action label send msg]` — a Material snackbar; tapping its action (if any)
+    /// fires the named message (ADR-0025). Fields: text, action label, action message.
+    Snackbar(String, String, String),
+    /// `notify title, body [send msg]` — post a notification; tapping it (if `msg` non-empty) fires
+    /// the named message (ADR-0025). Fields: title, body, tap message.
+    Notify(String, String, String),
 }
 
 /// Identifies the object whose script is currently running (`me`).
@@ -266,11 +278,13 @@ impl<'s> Runtime<'s> {
         env: &mut Env,
         me: Me,
     ) -> Result<Flow, String> {
-        // Platform escape hatches (ADR-0023): a command that takes one string arg → a host effect.
+        // Single-string-arg host effects: escape hatches (ADR-0023) + async requests (ADR-0025).
         let host_effect = match name {
             "openurl" => Some(HostCmd::OpenUrl as fn(String) -> HostCmd),
             "share" => Some(HostCmd::Share as fn(String) -> HostCmd),
             "toast" => Some(HostCmd::Toast as fn(String) -> HostCmd),
+            "geturl" => Some(HostCmd::GetUrl as fn(String) -> HostCmd),
+            "askpermission" => Some(HostCmd::AskPermission as fn(String) -> HostCmd),
             _ => None,
         };
         if let Some(make) = host_effect {
@@ -279,6 +293,22 @@ impl<'s> Runtime<'s> {
                 None => String::new(),
             };
             self.host.push(make(text));
+            return Ok(Flow::Next);
+        }
+        // Multi-arg async requests (ADR-0025): evaluate the first three positional args (missing →
+        // empty), then push the request effect for the host to perform.
+        if name == "snackbar" || name == "notify" {
+            let mut a = ["".to_string(), "".to_string(), "".to_string()];
+            for (i, slot) in a.iter_mut().enumerate() {
+                if let Some(e) = args.get(i) {
+                    *slot = self.eval(e, env, me)?.as_text();
+                }
+            }
+            let [x, y, z] = a;
+            self.host.push(match name {
+                "snackbar" => HostCmd::Snackbar(x, y, z),
+                _ => HostCmd::Notify(x, y, z),
+            });
             return Ok(Flow::Next);
         }
         match name {

@@ -70,3 +70,44 @@ cards:
         - 51
         - { mode: row, padding: 4, children: [70, 71, 72] }
         - 2
+  # Async platform facilities (ADR-0025/0026): each request returns via a message handler.
+  - id: 2
+    name: Async
+    background_id: 1
+    script: |-
+      on responseReceived data, status
+        put "HTTP " & status & " — " & length(data) & " bytes" into field "out"
+      end responseReceived
+      on permissionResult name, granted
+        put name & ": " & granted into field "out"
+      end permissionResult
+      on undoIt
+        put "undone" into field "out"
+      end undoIt
+      on opened
+        put "notification tapped" into field "out"
+      end opened
+    fields:
+      - { id: 80, name: out, rect: { x: 20, y: 60, w: 320, h: 44 }, text: "try a facility",
+          locked: true, text_role: titleMedium, live_region: polite }
+    buttons:
+      - { id: 81, name: fetch, rect: { x: 20, y: 120, w: 320, h: 48 }, title: "GET example.com", role: filled,
+          script: "on mouseUp\n  get url \"https://example.com\"\nend mouseUp" }
+      - { id: 82, name: perm, rect: { x: 20, y: 176, w: 320, h: 48 }, title: "Ask camera permission", role: tonal,
+          script: "on mouseUp\n  ask permission \"camera\"\nend mouseUp" }
+      - { id: 83, name: snack, rect: { x: 20, y: 232, w: 320, h: 48 }, title: "Snackbar w/ Undo", role: outlined,
+          script: "on mouseUp\n  snackbar \"Deleted item\" action \"Undo\" send \"undoIt\"\nend mouseUp" }
+      - { id: 84, name: note, rect: { x: 20, y: 288, w: 320, h: 48 }, title: "Post notification", role: elevated,
+          script: "on mouseUp\n  notify \"HyperCatalog\", \"Tap to return\" send \"opened\"\nend mouseUp" }
+      - { id: 85, name: pic, rect: { x: 20, y: 344, w: 320, h: 180 }, control: image,
+          source: "https://upload.wikimedia.org/wikipedia/commons/3/3a/Cat03.jpg" }
+    layout:
+      mode: column
+      padding: 16
+      children:
+        - 80
+        - 81
+        - 82
+        - 83
+        - 84
+        - 85

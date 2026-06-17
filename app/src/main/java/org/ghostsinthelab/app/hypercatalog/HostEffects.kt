@@ -16,5 +16,9 @@ fun hostEffectsOf(cmds: List<uniffi.hyperffi.HostEffect>): List<HostEffect> = cm
         is uniffi.hyperffi.HostEffect.OpenUrl -> HostEffect("openurl", e.url)
         is uniffi.hyperffi.HostEffect.Share -> HostEffect("share", e.text)
         is uniffi.hyperffi.HostEffect.Toast -> HostEffect("toast", e.text)
+        is uniffi.hyperffi.HostEffect.GetUrl -> HostEffect("geturl", e.url)
+        is uniffi.hyperffi.HostEffect.AskPermission -> HostEffect("askpermission", e.name)
+        is uniffi.hyperffi.HostEffect.Snackbar -> HostEffect("snackbar", e.text, e.action, e.message)
+        is uniffi.hyperffi.HostEffect.Notify -> HostEffect("notify", e.title, e.body, e.message)
     }
 }

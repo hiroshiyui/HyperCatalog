@@ -1,12 +1,18 @@
 package org.ghostsinthelab.app.hypercatalog
 
+import android.Manifest
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.graphics.Color
 import android.net.Uri
 import android.graphics.RectF
 import android.media.AudioManager
 import android.media.ToneGenerator
+import android.os.Build
 import android.os.Bundle
 import android.text.InputType
 import android.view.Gravity
@@ -26,13 +32,21 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.addCallback
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.ui.platform.ComposeView
+import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
+import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import com.google.android.material.snackbar.Snackbar
 import kotlinx.coroutines.runBlocking
 import java.io.File
+import java.net.HttpURLConnection
+import java.net.URL
+import java.util.concurrent.Executors
 
 /**
  * Hosts the [CardView] for the active stack. Reopens the last-used stack (or the bundled
@@ -59,6 +73,24 @@ class MainActivity : AppCompatActivity(), CardView.Callbacks {
     private lateinit var scriptBtn: Button
     private lateinit var delBtn: Button
     private var editingFieldId: Int = -1
+
+    // --- async platform facilities (ADR-0025) ---
+    /** Background pool for `get url` fetches (host owns concurrency; the core stays synchronous). */
+    private val netExecutor by lazy { Executors.newCachedThreadPool() }
+    /** The friendly permission name in flight, echoed back in `on permissionResult name, granted`. */
+    private var pendingPermissionName: String = ""
+    /** A monotonically increasing notification id / PendingIntent request code. */
+    private var notifyId = 1000
+    private val NOTIFY_CHANNEL_ID = "hypercatalog.stack"
+    private val EXTRA_NOTIFY_MESSAGE = "hypercatalog.notify.message"
+
+    /** `ask permission` launcher — registered at construction (before STARTED, as required). */
+    private val permissionLauncher =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+            val name = pendingPermissionName
+            pendingPermissionName = ""
+            deliverMessage("permissionResult", listOf(name, granted.toString()))
+        }
 
     /** Key (asset/file basename, no `.json`) of the stack currently loaded. */
     private var currentKey: String = ""
@@ -194,6 +226,7 @@ class MainActivity : AppCompatActivity(), CardView.Callbacks {
         }
 
         loadInitialStack()
+        handleNotificationTap(intent) // launched by tapping a `notify` notification?
 
         // System back → `on backPressed` (ADR-0019). If a handler consumes it (navigates/returns),
         // stay; otherwise fall through to the platform default (finish/back-stack).
@@ -414,8 +447,145 @@ class MainActivity : AppCompatActivity(), CardView.Callbacks {
                 "openurl" -> openUrl(e.text) // `open url "https://…"`
                 "share" -> shareText(e.text) // `share "…"`
                 "toast" -> Toast.makeText(this, e.text, Toast.LENGTH_SHORT).show() // `toast "…"`
+                // Async platform facilities (ADR-0025): perform off the core, deliver back via a message.
+                "geturl" -> fetchUrl(e.text) // `get url "…"` → on responseReceived data
+                "askpermission" -> requestPermission(e.text) // → on permissionResult name, granted
+                "snackbar" -> showSnackbar(e.text, e.arg2, e.arg3)
+                "notify" -> postNotification(e.text, e.arg2, e.arg3)
             }
         }
+    }
+
+    /**
+     * Deliver a host→core completion message (a fetch result, a snackbar action, a notification tap)
+     * and surface its effects (ADR-0024/0025). Reads [stack] fresh on the UI thread, so a delivery
+     * that lands after `destroy()`/a stack switch is a safe no-op (the worker holds no FFI handle).
+     */
+    private fun deliverMessage(name: String, args: List<String>) {
+        val s = stack ?: return
+        val r = s.dispatchMessage(name, args)
+        val effects = hostEffectsOf(r.hostCmds)
+        if (effects.isNotEmpty() || r.error != null) onEffects(effects, r.error)
+        if (r.cardChanged || r.needsRedraw) {
+            if (nativeMode) bindNativeContent() else cardView.refresh()
+        }
+    }
+
+    /** `get url "…"` — fetch off the UI thread, then deliver `on responseReceived data, status, url`. */
+    private fun fetchUrl(url: String) {
+        netExecutor.execute {
+            var body = ""
+            var status = "0"
+            try {
+                val conn = (URL(url).openConnection() as HttpURLConnection).apply {
+                    connectTimeout = 15_000
+                    readTimeout = 15_000
+                    requestMethod = "GET"
+                }
+                try {
+                    status = conn.responseCode.toString()
+                    val stream = if (conn.responseCode in 200..299) conn.inputStream else conn.errorStream
+                    body = stream?.bufferedReader()?.use { it.readText() } ?: ""
+                } finally {
+                    conn.disconnect()
+                }
+            } catch (_: Exception) {
+                status = "0"
+                body = ""
+            }
+            val b = body
+            val s = status
+            runOnUiThread { deliverMessage("responseReceived", listOf(b, s, url)) }
+        }
+    }
+
+    /** Map a friendly permission name (`camera`, `location`, …) to its Android permission string. */
+    private fun androidPermission(name: String): String? = when (name.trim().lowercase()) {
+        "camera" -> Manifest.permission.CAMERA
+        "location", "fine location" -> Manifest.permission.ACCESS_FINE_LOCATION
+        "coarse location" -> Manifest.permission.ACCESS_COARSE_LOCATION
+        "microphone", "mic" -> Manifest.permission.RECORD_AUDIO
+        "contacts" -> Manifest.permission.READ_CONTACTS
+        "notifications", "notification" ->
+            if (Build.VERSION.SDK_INT >= 33) Manifest.permission.POST_NOTIFICATIONS else null
+        else -> null
+    }
+
+    /** `ask permission "name"` — request it (or short-circuit if granted/unknown), then deliver
+     *  `on permissionResult name, granted`. */
+    private fun requestPermission(name: String) {
+        val perm = androidPermission(name)
+        // Unknown name or a permission not required on this API level → treat as granted.
+        if (perm == null || ContextCompat.checkSelfPermission(this, perm) == PackageManager.PERMISSION_GRANTED) {
+            deliverMessage("permissionResult", listOf(name, "true"))
+            return
+        }
+        pendingPermissionName = name
+        permissionLauncher.launch(perm)
+    }
+
+    /** `snackbar text [action label send msg]` — a Material snackbar; its action fires `msg`. */
+    private fun showSnackbar(text: String, action: String, message: String) {
+        val bar = Snackbar.make(root, text, Snackbar.LENGTH_LONG)
+        if (action.isNotEmpty()) {
+            bar.setAction(action) { deliverMessage(message, emptyList()) }
+        }
+        bar.show()
+    }
+
+    /** `notify title, body [send msg]` — post a notification; tapping it fires `msg` (ADR-0025). */
+    private fun postNotification(title: String, body: String, tapMessage: String) {
+        ensureNotificationChannel()
+        if (Build.VERSION.SDK_INT >= 33 &&
+            ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) !=
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            requestPermission("notifications") // ask once; the author can re-`notify` after granting
+            return
+        }
+        val id = notifyId++
+        val tapIntent = Intent(this, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            if (tapMessage.isNotEmpty()) putExtra(EXTRA_NOTIFY_MESSAGE, tapMessage)
+        }
+        val pending = PendingIntent.getActivity(
+            this, id, tapIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+        val notification = NotificationCompat.Builder(this, NOTIFY_CHANNEL_ID)
+            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setContentTitle(title)
+            .setContentText(body)
+            .setContentIntent(pending)
+            .setAutoCancel(true)
+            .build()
+        NotificationManagerCompat.from(this).notify(id, notification)
+    }
+
+    private fun ensureNotificationChannel() {
+        val mgr = getSystemService(NotificationManager::class.java)
+        if (mgr.getNotificationChannel(NOTIFY_CHANNEL_ID) == null) {
+            mgr.createNotificationChannel(
+                NotificationChannel(
+                    NOTIFY_CHANNEL_ID,
+                    "Stack notifications",
+                    NotificationManager.IMPORTANCE_DEFAULT,
+                ),
+            )
+        }
+    }
+
+    /** A notification tap re-enters here; fire its author-named message into the stack. */
+    private fun handleNotificationTap(intent: Intent?) {
+        val msg = intent?.getStringExtra(EXTRA_NOTIFY_MESSAGE) ?: return
+        intent.removeExtra(EXTRA_NOTIFY_MESSAGE)
+        deliverMessage(msg, emptyList())
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleNotificationTap(intent)
     }
 
     /** `open url "…"` — hand the URI to whatever app claims it (browser, dialer, maps, …). */
