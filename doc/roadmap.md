@@ -111,3 +111,4 @@ Rust-native — see [ADR-0001](adr/0001-rust-native-hypertalk.md).
 - [ADR-0015 — The `switch` object kind](adr/0015-switch-object-kind.md)
 - [ADR-0016 — Grid layout + card-level layout scripting](adr/0016-grid-layout-and-card-layout-scripting.md)
 - [ADR-0017 — `free` (absolute) layout mode](adr/0017-free-absolute-layout-mode.md)
+- [ADR-0018 — Material roles, `textRole`, theme/dynamic color](adr/0018-material-roles-and-theme.md)

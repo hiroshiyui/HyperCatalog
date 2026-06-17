@@ -462,6 +462,7 @@ impl<'s> Runtime<'s> {
                     "textstyle" => Value::from_text(text_style_get(&f.text_style)),
                     "textalign" => Value::from_text(f.text_align.clone()),
                     "weight" => Value::Number(f.weight as f64),
+                    "textrole" => Value::from_text(f.text_role.clone()),
                     _ => geom_get(&prop, f.rect).unwrap_or(Value::Empty),
                 })
             }
@@ -475,6 +476,7 @@ impl<'s> Runtime<'s> {
                     "name" | "short name" | "long name" => Value::from_text(b.name.clone()),
                     "title" | "text" | "label" => Value::from_text(b.label().to_string()),
                     "checked" => Value::Bool(b.checked.unwrap_or(false)),
+                    "role" => Value::from_text(b.role.clone()),
                     "visible" => Value::Bool(b.visible),
                     "id" => Value::Number(b.id as f64),
                     "textfont" => Value::from_text(b.text_font.clone()),
@@ -506,6 +508,8 @@ impl<'s> Runtime<'s> {
             ResolvedObj::Stack => Ok(match prop.as_str() {
                 "name" | "short name" | "long name" => Value::from_text(self.stack.name.clone()),
                 "number" => Value::Number(self.stack.cards.len() as f64),
+                "theme" => Value::from_text(self.stack.theme.clone()),
+                "accentcolor" => Value::from_text(self.stack.accent_color.clone()),
                 _ => Value::Empty,
             }),
         }
@@ -546,6 +550,7 @@ impl<'s> Runtime<'s> {
                             field.weight = n as f32;
                         }
                     }
+                    "textrole" => field.text_role = v.as_text(),
                     _ => {
                         if !geom_set(&prop, &mut field.rect, &v) {
                             return Err(format!("unknown field property '{prop}'"));
@@ -563,6 +568,7 @@ impl<'s> Runtime<'s> {
                     "title" | "text" | "label" => button.title = v.as_text(),
                     "name" => button.name = v.as_text(),
                     "checked" => button.checked = Some(v.as_bool()),
+                    "role" => button.role = v.as_text(),
                     "visible" => button.visible = v.as_bool(),
                     "textfont" => button.text_font = v.as_text(),
                     "textsize" => {
@@ -601,6 +607,8 @@ impl<'s> Runtime<'s> {
             },
             ResolvedObj::Stack => match prop.as_str() {
                 "name" => self.stack.name = v.as_text(),
+                "theme" => self.stack.theme = v.as_text(),
+                "accentcolor" => self.stack.accent_color = v.as_text(),
                 _ => return Err(format!("unknown stack property '{prop}'")),
             },
         }

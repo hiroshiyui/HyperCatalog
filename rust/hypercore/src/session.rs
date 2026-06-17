@@ -74,6 +74,9 @@ pub struct ViewTree {
     /// Card size in card units, for `layout == "free"` absolute placement (ADR-0017); 0 otherwise.
     pub width: f32,
     pub height: f32,
+    /// Stack-level Material theme + seed color (ADR-0018); the host builds a color scheme from them.
+    pub theme: String,
+    pub accent_color: String,
     /// Top-level node ids, in render (z) order.
     pub root_ids: Vec<u32>,
     pub nodes: Vec<ViewNode>,
@@ -293,6 +296,8 @@ impl Session {
             columns,
             width: self.stack.width,
             height: self.stack.height,
+            theme: self.stack.theme.clone(),
+            accent_color: self.stack.accent_color.clone(),
             root_ids,
             nodes,
         }
@@ -437,6 +442,7 @@ impl Session {
                     text_style: String::new(),
                     text_align: String::new(),
                     weight: 0.0,
+                    role: String::new(),
                 });
                 Some(id)
             }
@@ -459,6 +465,7 @@ impl Session {
                     text_style: String::new(),
                     text_align: String::new(),
                     weight: 0.0,
+                    text_role: String::new(),
                 });
                 Some(id)
             }
@@ -1167,6 +1174,10 @@ fn field_node(f: &crate::model::Field) -> ViewNode {
                 key: "align".to_string(),
                 value: f.text_align.clone(),
             },
+            Prop {
+                key: "textRole".to_string(),
+                value: f.text_role.clone(),
+            },
         ],
     }
 }
@@ -1183,6 +1194,10 @@ fn button_node(b: &crate::model::Button) -> ViewNode {
         Prop {
             key: "style".to_string(),
             value: format!("{:?}", b.style).to_lowercase(),
+        },
+        Prop {
+            key: "role".to_string(),
+            value: b.role.clone(),
         },
         Prop {
             key: "visible".to_string(),

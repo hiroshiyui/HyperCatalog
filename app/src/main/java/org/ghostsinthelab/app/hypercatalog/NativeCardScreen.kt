@@ -11,12 +11,22 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import android.os.Build
 import androidx.compose.material3.Button
+import androidx.compose.material3.ColorScheme
+import androidx.compose.material3.ElevatedButton
+import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.dynamicDarkColorScheme
+import androidx.compose.material3.dynamicLightColorScheme
+import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -26,6 +36,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
 import uniffi.hyperffi.DispatchResult
 import uniffi.hyperffi.HyperStack
@@ -66,18 +79,39 @@ fun NativeCardScreen(
         rev++
     }
 
-    // The root container: scrollable so tall cards don't clip. Nested groups don't scroll.
-    Container(
-        mode = tree.layout,
-        padding = tree.padding,
-        childIds = tree.rootIds,
-        tree = tree,
-        stack = stack,
-        onResult = ::handle,
-        modifier = Modifier.fillMaxSize(),
-        scroll = true,
-        columns = tree.columns,
-    )
+    // Stack-level Material theme + seed color (ADR-0018) wrap the whole card.
+    MaterialTheme(colorScheme = schemeFor(tree.theme, tree.accentColor)) {
+        // The root container: scrollable so tall cards don't clip. Nested groups don't scroll.
+        Container(
+            mode = tree.layout,
+            padding = tree.padding,
+            childIds = tree.rootIds,
+            tree = tree,
+            stack = stack,
+            onResult = ::handle,
+            modifier = Modifier.fillMaxSize(),
+            scroll = true,
+            columns = tree.columns,
+        )
+    }
+}
+
+/** Build a Material 3 [ColorScheme] from the stack's `theme` (light/dark/system/dynamic) and an
+ *  optional seed `accent` color (hex). `dynamic` uses Material You on Android 12+, else the seed. */
+@Composable
+private fun schemeFor(theme: String, accent: String): ColorScheme {
+    val context = LocalContext.current
+    val dark = when (theme.lowercase()) {
+        "dark" -> true
+        "light", "" -> false
+        else -> androidx.compose.foundation.isSystemInDarkTheme() // "system" / "dynamic"
+    }
+    if (theme.equals("dynamic", ignoreCase = true) && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        return if (dark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+    }
+    val base = if (dark) darkColorScheme() else lightColorScheme()
+    val seed = runCatching { Color(android.graphics.Color.parseColor(accent)) }.getOrNull()
+    return if (seed != null) base.copy(primary = seed) else base
 }
 
 /** A `column`/`row` container (root or a group node) that lays out [childIds] of [tree]. */
@@ -182,10 +216,14 @@ private fun RenderNode(
         "button" -> {
             val label = node.prop("title")
             val click = { onResult(stack.dispatch(node.id, "mouseUp", emptyList())) }
-            // Abstract style value → Material widget; unknown styles fall back to outlined.
-            when (node.prop("style")) {
-                "rectangle" -> Button(onClick = click, modifier = modifier) { Text(label) }
-                "transparent" -> TextButton(onClick = click, modifier = modifier) { Text(label) }
+            // Material role (ADR-0018) wins; else fall back to the abstract style → role mapping.
+            val role = node.prop("role").ifEmpty { styleToRole(node.prop("style")) }
+            when (role) {
+                "filled" -> Button(onClick = click, modifier = modifier) { Text(label) }
+                "tonal" -> FilledTonalButton(onClick = click, modifier = modifier) { Text(label) }
+                "elevated" -> ElevatedButton(onClick = click, modifier = modifier) { Text(label) }
+                "text" -> TextButton(onClick = click, modifier = modifier) { Text(label) }
+                "fab" -> ExtendedFloatingActionButton(onClick = click, modifier = modifier) { Text(label) }
                 else -> OutlinedButton(onClick = click, modifier = modifier) { Text(label) }
             }
         }
@@ -214,6 +252,7 @@ private fun RenderNode(
                     stack.setFieldText(node.id, it)
                 },
                 readOnly = locked,
+                textStyle = typographyFor(node.prop("textRole")),
                 modifier = modifier,
             )
         }
@@ -227,3 +266,34 @@ private fun RenderNode(
 private fun ViewNode.prop(key: String): String = props.firstOrNull { it.key == key }?.value ?: ""
 
 private fun ViewNode.weight(): Float = prop("weight").toFloatOrNull() ?: 0f
+
+/** Map a legacy `ButtonStyle` to a Material role, preserving slice-1 appearance when no role is set. */
+private fun styleToRole(style: String): String = when (style) {
+    "rectangle" -> "filled"
+    "transparent" -> "text"
+    else -> "outlined" // "rounded"/unknown
+}
+
+/** Resolve a Material type-scale token (ADR-0018) to a [TextStyle], or the default if unknown. */
+@Composable
+private fun typographyFor(role: String): TextStyle {
+    val t = MaterialTheme.typography
+    return when (role) {
+        "displayLarge" -> t.displayLarge
+        "displayMedium" -> t.displayMedium
+        "displaySmall" -> t.displaySmall
+        "headlineLarge" -> t.headlineLarge
+        "headlineMedium" -> t.headlineMedium
+        "headlineSmall" -> t.headlineSmall
+        "titleLarge" -> t.titleLarge
+        "titleMedium" -> t.titleMedium
+        "titleSmall" -> t.titleSmall
+        "bodyLarge" -> t.bodyLarge
+        "bodyMedium" -> t.bodyMedium
+        "bodySmall" -> t.bodySmall
+        "labelLarge" -> t.labelLarge
+        "labelMedium" -> t.labelMedium
+        "labelSmall" -> t.labelSmall
+        else -> androidx.compose.material3.LocalTextStyle.current
+    }
+}

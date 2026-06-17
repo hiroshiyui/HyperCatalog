@@ -355,6 +355,54 @@ fn the_layout_of_card_getter() {
     assert_eq!(field_text(&s, 11), "column"); // field "b" is id 11
 }
 
+// --- ADR-0018 Material roles + textRole + theme ---
+
+#[test]
+fn roles_and_theme_project_and_script() {
+    let yaml = r##"
+name: Themed
+accent_color: "#6750A4"
+theme: dark
+cards:
+  - id: 1
+    name: One
+    fields:
+      - { id: 10, name: t, rect: { x: 0, y: 0, w: 10, h: 10 }, text: "Hi", text_role: headlineSmall }
+    buttons:
+      - { id: 20, name: b, rect: { x: 0, y: 0, w: 10, h: 10 }, title: "B", role: filled }
+"##;
+    let mut s = Session::load_from_yaml(yaml).unwrap();
+    let t = s.render_view_tree();
+    assert_eq!(t.theme, "dark");
+    assert_eq!(t.accent_color, "#6750A4");
+    assert_eq!(
+        prop(t.nodes.iter().find(|n| n.id == 20).unwrap(), "role"),
+        "filled"
+    );
+    assert_eq!(
+        prop(t.nodes.iter().find(|n| n.id == 10).unwrap(), "textRole"),
+        "headlineSmall"
+    );
+
+    // Scriptable: set the role / textRole / accentColor.
+    let script = concat!(
+        "on mouseUp\n",
+        "  set the role of button \"b\" to \"tonal\"\n",
+        "  set the textRole of field \"t\" to \"titleLarge\"\n",
+        "  set the accentColor of this stack to \"#FF0000\"\n",
+        "end mouseUp",
+    );
+    s.set_object_script(20, script);
+    let r = s.dispatch_by_id(20, "mouseUp", &[]);
+    assert!(r.error.is_none(), "error: {:?}", r.error);
+    let t = s.render_view_tree();
+    assert_eq!(
+        prop(t.nodes.iter().find(|n| n.id == 20).unwrap(), "role"),
+        "tonal"
+    );
+    assert_eq!(t.accent_color, "#FF0000");
+}
+
 #[test]
 fn free_layout_emits_geometry() {
     // `free` is the absolute escape hatch (ADR-0017): object nodes carry x/y/w/h, ViewTree size.

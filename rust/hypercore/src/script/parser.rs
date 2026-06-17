@@ -480,9 +480,16 @@ impl Parser {
             Ok(ObjectRef::Field(self.parse_field_ref()?))
         } else if self.looks_like_button_ref() {
             Ok(ObjectRef::Button(self.parse_button_ref()?))
-        } else if self.is_any(&["card", "cd", "this"]) {
+        } else if self.is_any(&["this"]) {
+            self.advance(); // 'this'
+            if self.eat_kw("stack") {
+                Ok(ObjectRef::Stack) // `this stack`
+            } else {
+                self.eat_kw("card"); // `this card` / bare `this`
+                Ok(ObjectRef::Card)
+            }
+        } else if self.is_any(&["card", "cd"]) {
             self.advance();
-            self.eat_kw("card");
             Ok(ObjectRef::Card)
         } else if self.eat_kw("stack") {
             Ok(ObjectRef::Stack)

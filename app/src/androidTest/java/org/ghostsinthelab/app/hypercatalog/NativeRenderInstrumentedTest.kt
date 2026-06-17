@@ -103,6 +103,34 @@ class NativeRenderInstrumentedTest {
         }
     }
 
+    /** Material roles + theme (ADR-0018): role-mapped buttons render under a seeded theme. */
+    private val themedYaml = """
+        name: ThemedITest
+        accent_color: "#6750A4"
+        theme: dark
+        cards:
+          - id: 1
+            name: One
+            buttons:
+              - { id: 20, name: a, rect: { x: 0, y: 0, w: 10, h: 10 }, title: "Filled", role: filled }
+              - { id: 21, name: b, rect: { x: 0, y: 0, w: 10, h: 10 }, title: "Tonal", role: tonal }
+              - { id: 22, name: c, rect: { x: 0, y: 0, w: 10, h: 10 }, title: "Fab", role: fab,
+                  script: "on mouseUp\n  set the name of this stack to \"tapped\"\nend mouseUp" }
+    """.trimIndent()
+
+    @Test
+    fun roles_render_and_dispatch_under_theme() {
+        val stack = uniffi.hyperffi.HyperStack.loadYaml(themedYaml)
+        try {
+            compose.setContent { MaterialTheme { NativeCardScreen(stack) { _, _ -> } } }
+            compose.onNodeWithText("Filled").assertIsDisplayed()
+            compose.onNodeWithText("Tonal").assertIsDisplayed()
+            compose.onNodeWithText("Fab").assertIsDisplayed().performClick()
+        } finally {
+            stack.destroy()
+        }
+    }
+
     /** A `free` (absolute) layout (ADR-0017): objects placed by rect; dispatch still works. */
     private val freeYaml = """
         name: FreeITest

@@ -2,6 +2,8 @@
 name: Gesture Demo
 width: 360
 height: 640
+# Material theme for native mode (ADR-0018): a seed color tints the scheme; buttons use roles.
+accent_color: "#7D5260"
 script: |-
   on swipeLeft
     go next card
@@ -77,6 +79,7 @@ cards:
       h: 80
     title: Long-press me
     text_size: 18
+    role: tonal
     script: |-
       on longPress
         put "status: LONG-PRESSED" into field "status"
@@ -111,7 +114,7 @@ cards:
       h: 50
     title: Open Productivity
     text_size: 16
-    style: rectangle
+    role: filled
     script: |-
       on mouseUp
         go to stack "Productivity"

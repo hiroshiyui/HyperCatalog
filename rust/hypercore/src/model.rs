@@ -62,6 +62,10 @@ pub struct Button {
     /// 0 = no flex (natural/full size). Ignored by the Canvas target.
     #[serde(default)]
     pub weight: f32,
+    /// Material button role (ADR-0018): `""` (use `style`) | `filled` | `tonal` | `outlined` |
+    /// `text` | `elevated` | `fab`. The native target prefers this over `style`; Canvas ignores it.
+    #[serde(default)]
+    pub role: String,
 }
 
 impl Button {
@@ -103,6 +107,10 @@ pub struct Field {
     /// 0 = no flex (natural/full size). Ignored by the Canvas target.
     #[serde(default)]
     pub weight: f32,
+    /// Material type-scale token for the field's text (ADR-0018), e.g. `headlineSmall`,
+    /// `bodyLarge`; `""` = host default. The native target maps it to `MaterialTheme.typography`.
+    #[serde(default)]
+    pub text_role: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -182,6 +190,13 @@ pub struct Stack {
     pub cards: Vec<Card>,
     #[serde(default)]
     pub script: String,
+    /// Material theme for the native target (ADR-0018): `""`/`light` | `dark` | `system` |
+    /// `dynamic` (Material You, Android 12+; falls back to the seed below). Canvas ignores it.
+    #[serde(default)]
+    pub theme: String,
+    /// Seed color (hex, e.g. `#6750A4`) for the Material color scheme (ADR-0018); `""` = default.
+    #[serde(default)]
+    pub accent_color: String,
 }
 
 impl Stack {

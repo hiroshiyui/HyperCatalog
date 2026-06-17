@@ -123,6 +123,9 @@ pub struct ViewTree {
     /// Card size in card units, for `layout == "free"` absolute placement (ADR-0017).
     pub width: f32,
     pub height: f32,
+    /// Stack Material theme + seed color (ADR-0018).
+    pub theme: String,
+    pub accent_color: String,
     pub root_ids: Vec<i32>,
     pub nodes: Vec<ViewNode>,
 }
@@ -159,6 +162,8 @@ impl From<hypercore::ViewTree> for ViewTree {
             columns: t.columns as i32,
             width: t.width,
             height: t.height,
+            theme: t.theme,
+            accent_color: t.accent_color,
             root_ids: t.root_ids.into_iter().map(|i| i as i32).collect(),
             nodes: t.nodes.into_iter().map(ViewNode::from).collect(),
         }
