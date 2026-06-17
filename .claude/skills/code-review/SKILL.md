@@ -105,13 +105,19 @@ what "looks" untested: gather a report and target the lines/branches it actually
 **Android host (`app/`):**
 - Local JVM unit tests live in `app/src/test` and run fast offline via
   `./gradlew :app:testDebugUnitTest` (no emulator, no `.so` — the bridge loads only at runtime).
-  Instrumented tests in `app/src/androidTest` need a device/emulator.
 - Pure host logic must be **framework-free and unit-tested**, not buried in a `View`. The letterbox
-  coordinate math lives in `CardTransform` precisely so it is testable on the JVM
-  (`CardTransformTest`); prefer extracting such logic over leaving it untestable inside `CardView`.
-  When reviewing, flag testable logic that is trapped behind Android types (`Canvas`/`Paint`/
+  coordinate math lives in `CardTransform` and the swipe/stack-name/atomic-write/pref-key helpers in
+  `HostLogic`, precisely so they are testable on the JVM (`CardTransformTest`/`HostLogicTest`);
+  prefer extracting such logic over leaving it untestable inside `CardView`/`MainActivity`. When
+  reviewing, flag testable logic that is trapped behind Android types (`Canvas`/`Paint`/
   `MotionEvent`) or the generated bridge with no test. (Bridge-touching code can't run in a JVM
   unit test, so push pure logic out of it.)
+- **Instrumented tests** in `app/src/androidTest` need a device/emulator and run via
+  `./gradlew :app:connectedDebugAndroidTest`. They cover exactly what JVM tests can't reach — the
+  real native `.so` through JNA (`HyperStackBridgeTest`) and the real Preferences DataStore
+  (`StackPrefsInstrumentedTest`, the ADR-0013 session view state). New bridge methods or DataStore
+  state belong here; a device-only path with no instrumented test is a coverage gap. (These do
+  **not** run in the headless `testDebugUnitTest` gate — they're a `connectedCheck` step, e.g. for CI.)
 - Measure with JaCoCo (`createDebugUnitTestCoverageReport`) and target what it reports.
 
 ---
@@ -167,10 +173,13 @@ Apply fixes for all Critical and Major findings directly, then verify the whole 
 ```bash
 cd rust && cargo test -p hypercore && cargo clippy --workspace --all-targets && cargo fmt --all --check
 cd .. && ./gradlew :app:testDebugUnitTest && ./gradlew :app:assembleDebug
+# If a device/emulator is attached (and the change touches the bridge or DataStore persistence):
+./gradlew :app:connectedDebugAndroidTest
 ```
 
 Do not consider the review complete until **both** the Rust and Android unit tests pass, clippy is
-clean, and the APK assembles.
+clean, and the APK assembles. Run `connectedDebugAndroidTest` too when a device is available and the
+change touches the native bridge or DataStore persistence (it's skipped, not failed, with no device).
 Diagnose and resolve any failure before finishing. If a Rust source change was made, ensure the
 `.so` is rebuilt and the Kotlin bindings regenerated (the `:app:assembleDebug` `cargoNdkBuild` +
 `uniffiBindgen` tasks do this) before any on-device re-verification.
