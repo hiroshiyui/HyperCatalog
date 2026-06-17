@@ -4,6 +4,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.isToggleable
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -48,6 +49,30 @@ class NativeRenderInstrumentedTest {
             compose.onNodeWithText("before").assertIsDisplayed()
             compose.onNodeWithText("Go").performClick()
             compose.onNodeWithText("after").assertIsDisplayed()
+        } finally {
+            stack.destroy()
+        }
+    }
+
+    /** Accessibility (ADR-0022): a node's `contentDescription` reaches Compose semantics, so an
+     *  image with no text label is still findable/announceable by TalkBack. */
+    @Test
+    fun content_description_reaches_semantics() {
+        val yaml = """
+            name: A11yITest
+            width: 100
+            height: 100
+            cards:
+              - id: 1
+                name: One
+                buttons:
+                  - { id: 20, name: img, rect: { x: 0, y: 0, w: 40, h: 40 }, control: image,
+                      source: "missing.png", content_description: "Company logo" }
+        """.trimIndent()
+        val stack = uniffi.hyperffi.HyperStack.loadYaml(yaml)
+        try {
+            compose.setContent { MaterialTheme { NativeCardScreen(stack) { _, _ -> } } }
+            compose.onNodeWithContentDescription("Company logo").assertExists()
         } finally {
             stack.destroy()
         }

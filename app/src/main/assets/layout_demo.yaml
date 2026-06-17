@@ -27,7 +27,7 @@ cards:
       - { id: 1, name: title, rect: { x: 20, y: 60, w: 320, h: 44 }, text: "Responsive tiles",
           locked: true, text_role: headlineSmall }
       - { id: 2, name: status, rect: { x: 20, y: 560, w: 320, h: 40 }, text: "tap a tile",
-          locked: true, text_align: center, text_role: titleMedium }
+          locked: true, text_align: center, text_role: titleMedium, live_region: polite }
     buttons:
       - { id: 10, name: one, rect: { x: 20, y: 120, w: 150, h: 80 }, title: "One", role: filled,
           script: "on mouseUp\n  put \"One\" into field \"status\"\nend mouseUp" }

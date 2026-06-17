@@ -463,6 +463,8 @@ impl<'s> Runtime<'s> {
                     "textalign" => Value::from_text(f.text_align.clone()),
                     "weight" => Value::Number(f.weight as f64),
                     "textrole" => Value::from_text(f.text_role.clone()),
+                    "contentdescription" => Value::from_text(f.content_description.clone()),
+                    "liveregion" => Value::from_text(f.live_region.clone()),
                     _ => geom_get(&prop, f.rect).unwrap_or(Value::Empty),
                 })
             }
@@ -479,6 +481,7 @@ impl<'s> Runtime<'s> {
                     "value" => Value::Number(b.value.unwrap_or(0.0) as f64),
                     "control" => Value::from_text(b.control.clone()),
                     "source" => Value::from_text(b.source.clone()),
+                    "contentdescription" => Value::from_text(b.content_description.clone()),
                     "role" => Value::from_text(b.role.clone()),
                     "visible" => Value::Bool(b.visible),
                     "id" => Value::Number(b.id as f64),
@@ -562,6 +565,8 @@ impl<'s> Runtime<'s> {
                         }
                     }
                     "textrole" => field.text_role = v.as_text(),
+                    "contentdescription" => field.content_description = v.as_text(),
+                    "liveregion" => field.live_region = v.as_text(),
                     _ => {
                         if !geom_set(&prop, &mut field.rect, &v) {
                             return Err(format!("unknown field property '{prop}'"));
@@ -586,6 +591,7 @@ impl<'s> Runtime<'s> {
                     }
                     "control" => button.control = v.as_text(),
                     "source" => button.source = v.as_text(),
+                    "contentdescription" => button.content_description = v.as_text(),
                     "role" => button.role = v.as_text(),
                     "visible" => button.visible = v.as_bool(),
                     "textfont" => button.text_font = v.as_text(),

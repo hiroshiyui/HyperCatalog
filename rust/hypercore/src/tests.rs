@@ -268,6 +268,44 @@ fn weight_get_set_via_script() {
     assert_eq!(counter.text, "2");
 }
 
+// --- ADR-0022 accessibility: contentDescription + liveRegion ---
+
+#[test]
+fn accessibility_props_project_and_script() {
+    let yaml = r#"
+name: A11y
+cards:
+  - id: 1
+    name: One
+    fields:
+      - { id: 10, name: status, rect: { x: 0, y: 0, w: 10, h: 10 }, text: "idle", live_region: polite }
+    buttons:
+      - { id: 20, name: img, rect: { x: 0, y: 0, w: 10, h: 10 }, control: image, source: "logo.png",
+          content_description: "Company logo" }
+"#;
+    let mut s = Session::load_from_yaml(yaml).unwrap();
+    let t = s.render_view_tree();
+    assert_eq!(
+        prop(t.nodes.iter().find(|n| n.id == 10).unwrap(), "liveRegion"),
+        "polite"
+    );
+    assert_eq!(
+        prop(
+            t.nodes.iter().find(|n| n.id == 20).unwrap(),
+            "contentDescription"
+        ),
+        "Company logo"
+    );
+
+    // Scriptable.
+    s.set_object_script(
+        20,
+        "on mouseUp\n  set the contentDescription of me to \"logo tapped\"\nend mouseUp",
+    );
+    s.dispatch_by_id(20, "mouseUp", &[]);
+    assert_eq!(prop_node(&s, 20, "contentDescription"), "logo tapped");
+}
+
 // --- ADR-0015 switch object kind (a button with `checked`) ---
 
 /// A one-card stack with a switch (button id 20 carrying `checked`) and a readout field 10.

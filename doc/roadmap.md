@@ -119,11 +119,12 @@ Compose, scriptable via interp arms): **`checkbox`** / **`radio`** (boolean), **
 **`progress`** (`the value of`), **`image`** (`the source of`, local assets), **`chip`**, and
 **`divider`** ([ADR-0021](adr/0021-component-palette.md)). Demoed in `assets/layout_demo.yaml`.
 
-### Phase 7 — Accessibility & theming polish
+### Phase 7 — Accessibility & theming polish *(done)*
 
-`the contentDescription of <object>`, focus order, and live regions for **TalkBack** (ADR-0010's
-"single strongest argument for native"); a seed→tonal palette so non-`dynamic` light/dark themes use
-the stack's `accentColor`. Host-only, riding the existing view-tree pipe.
+`the contentDescription of <object>` and field `live_region` (polite/assertive) for **TalkBack**
+(ADR-0010's "single strongest argument for native"), applied via Compose semantics; a seeded color
+scheme so non-`dynamic` light/dark themes derive secondary/tertiary/containers from the stack's
+`accentColor` ([ADR-0022](adr/0022-accessibility-and-seeded-theme.md)). Focus order deferred.
 
 ### Phase 8 — Platform escape hatches
 
@@ -177,3 +178,4 @@ Rust-native — see [ADR-0001](adr/0001-rust-native-hypertalk.md).
 - [ADR-0019 — Activity-lifecycle messages](adr/0019-lifecycle-messages.md)
 - [ADR-0020 — Safe-area insets (constraint solver deferred)](adr/0020-safe-area-insets-and-constraints.md)
 - [ADR-0021 — Native component palette](adr/0021-component-palette.md)
+- [ADR-0022 — Accessibility & seeded color scheme](adr/0022-accessibility-and-seeded-theme.md)

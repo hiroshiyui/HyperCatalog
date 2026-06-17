@@ -77,6 +77,10 @@ pub struct Button {
     /// `text` | `elevated` | `fab`. The native target prefers this over `style`; Canvas ignores it.
     #[serde(default)]
     pub role: String,
+    /// Accessibility label for TalkBack (ADR-0022); `""` = derive from the visible label. The
+    /// native target applies it via Compose semantics; the Canvas target ignores it.
+    #[serde(default)]
+    pub content_description: String,
 }
 
 impl Button {
@@ -122,6 +126,13 @@ pub struct Field {
     /// `bodyLarge`; `""` = host default. The native target maps it to `MaterialTheme.typography`.
     #[serde(default)]
     pub text_role: String,
+    /// Accessibility label for TalkBack (ADR-0022); `""` = derive from contents.
+    #[serde(default)]
+    pub content_description: String,
+    /// Live-region politeness (ADR-0022): `""` | `polite` | `assertive`. A `polite`/`assertive`
+    /// field announces its text changes to TalkBack — for status readouts. Native target only.
+    #[serde(default)]
+    pub live_region: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

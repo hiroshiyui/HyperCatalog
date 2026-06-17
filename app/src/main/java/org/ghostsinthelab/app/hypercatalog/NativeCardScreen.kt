@@ -52,6 +52,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
@@ -132,8 +136,27 @@ private fun schemeFor(theme: String, accent: String): ColorScheme {
         return if (dark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
     }
     val base = if (dark) darkColorScheme() else lightColorScheme()
-    val seed = runCatching { Color(android.graphics.Color.parseColor(accent)) }.getOrNull()
-    return if (seed != null) base.copy(primary = seed) else base
+    val seed = runCatching { android.graphics.Color.parseColor(accent) }.getOrNull() ?: return base
+    return seededScheme(base, seed, dark)
+}
+
+/** Derive a cohesive [ColorScheme] from a single seed color (ADR-0022): primary from the seed,
+ *  with secondary/tertiary/containers rotated/desaturated from its hue. A lightweight stand-in for
+ *  a full Material tonal palette (which needs material-color-utilities); surfaces stay neutral. */
+private fun seededScheme(base: ColorScheme, seed: Int, dark: Boolean): ColorScheme {
+    val hsv = FloatArray(3).also { android.graphics.Color.colorToHSV(seed, it) }
+    fun c(hue: Float, sat: Float, value: Float) = Color(
+        android.graphics.Color.HSVToColor(
+            floatArrayOf(((hue % 360f) + 360f) % 360f, sat.coerceIn(0f, 1f), value.coerceIn(0f, 1f)),
+        ),
+    )
+    return base.copy(
+        primary = Color(seed),
+        onPrimary = if (hsv[2] > 0.6f) Color.Black else Color.White,
+        primaryContainer = c(hsv[0], hsv[1] * 0.35f, if (dark) 0.30f else 0.90f),
+        secondary = c(hsv[0], hsv[1] * 0.55f, hsv[2]),
+        tertiary = c(hsv[0] + 60f, hsv[1], hsv[2]),
+    )
 }
 
 /** A `column`/`row` container (root or a group node) that lays out [childIds] of [tree]. */
@@ -226,17 +249,19 @@ private fun Container(
     }
 }
 
-/** Render one node into the [modifier] its parent container computed for it (carries weight/size). */
+/** Render one node into the [baseModifier] its parent container computed for it (carries
+ *  weight/size), augmented with the node's accessibility semantics (ADR-0022). */
 @Composable
 private fun RenderNode(
     node: ViewNode,
     tree: ViewTree,
     stack: HyperStack,
     onResult: (DispatchResult) -> Unit,
-    modifier: Modifier,
+    baseModifier: Modifier,
 ) {
     if (node.prop("visible") == "false") return
     val context = LocalContext.current
+    val modifier = baseModifier.then(node.semanticsModifier())
 
     when (node.kind) {
         "group" -> Container(
@@ -372,6 +397,20 @@ private fun assetImage(context: android.content.Context, name: String): ImageBit
     return runCatching {
         context.assets.open(name).use { BitmapFactory.decodeStream(it) }?.asImageBitmap()
     }.getOrNull()
+}
+
+/** Accessibility semantics for a node (ADR-0022): a TalkBack `contentDescription` and/or a
+ *  `liveRegion` (status fields announce changes). [Modifier] (no-op) when neither is set. */
+private fun ViewNode.semanticsModifier(): Modifier {
+    val cd = prop("contentDescription")
+    val live = prop("liveRegion")
+    if (cd.isEmpty() && live.isEmpty()) return Modifier
+    return Modifier.semantics {
+        if (cd.isNotEmpty()) contentDescription = cd
+        if (live.isNotEmpty()) {
+            liveRegion = if (live == "assertive") LiveRegionMode.Assertive else LiveRegionMode.Polite
+        }
+    }
 }
 
 private fun ViewNode.prop(key: String): String = props.firstOrNull { it.key == key }?.value ?: ""

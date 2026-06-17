@@ -488,6 +488,7 @@ impl Session {
                     text_align: String::new(),
                     weight: 0.0,
                     role: String::new(),
+                    content_description: String::new(),
                 });
                 Some(id)
             }
@@ -511,6 +512,8 @@ impl Session {
                     text_align: String::new(),
                     weight: 0.0,
                     text_role: String::new(),
+                    content_description: String::new(),
+                    live_region: String::new(),
                 });
                 Some(id)
             }
@@ -1245,6 +1248,14 @@ fn field_node(f: &crate::model::Field) -> ViewNode {
                 key: "textRole".to_string(),
                 value: f.text_role.clone(),
             },
+            Prop {
+                key: "contentDescription".to_string(),
+                value: f.content_description.clone(),
+            },
+            Prop {
+                key: "liveRegion".to_string(),
+                value: f.live_region.clone(),
+            },
         ],
     }
 }
@@ -1285,6 +1296,10 @@ fn button_node(b: &crate::model::Button) -> ViewNode {
         Prop {
             key: "align".to_string(),
             value: b.text_align.clone(),
+        },
+        Prop {
+            key: "contentDescription".to_string(),
+            value: b.content_description.clone(),
         },
     ];
     if let Some(checked) = b.checked {
