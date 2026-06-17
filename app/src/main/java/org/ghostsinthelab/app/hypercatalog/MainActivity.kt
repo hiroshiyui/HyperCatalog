@@ -692,10 +692,11 @@ class MainActivity : AppCompatActivity(), CardView.Callbacks {
     // --- lifecycle messages (ADR-0019) ---
 
     /** Fire a lifecycle message into the stack and surface its effects; returns whether a handler
-     *  ran (so the caller can e.g. consume a `backPressed`). */
-    private fun fireLifecycle(message: String): Boolean {
+     *  ran (so the caller can e.g. consume a `backPressed`). `args` carries typed message arguments
+     *  (ADR-0024) — e.g. `rotate` passes the new width/height for `on rotate w, h`. */
+    private fun fireLifecycle(message: String, args: List<String> = emptyList()): Boolean {
         val s = stack ?: return false
-        val r = s.dispatchLifecycle(message)
+        val r = s.dispatchLifecycle(message, args)
         val effects = hostEffectsOf(r.hostCmds)
         if (effects.isNotEmpty() || r.error != null) onEffects(effects, r.error)
         if (r.cardChanged || r.needsRedraw) {
@@ -711,7 +712,12 @@ class MainActivity : AppCompatActivity(), CardView.Callbacks {
 
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
-        fireLifecycle("rotate") // configChanges in the manifest keeps us from being recreated
+        // configChanges in the manifest keeps us from being recreated; pass the new size as
+        // `on rotate w, h` args (dp), the same units the safe-area insets use (ADR-0024).
+        fireLifecycle(
+            "rotate",
+            listOf(newConfig.screenWidthDp.toString(), newConfig.screenHeightDp.toString()),
+        )
     }
 
     override fun onPause() {

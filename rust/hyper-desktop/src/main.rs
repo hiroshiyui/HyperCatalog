@@ -95,8 +95,13 @@ fn main() {
             }
             "tap" => handle_tap(&mut session, rest),
             "fire" => {
-                // Fire a lifecycle/custom message down the card→bg→stack path (ADR-0019).
-                let r = session.dispatch_lifecycle(rest);
+                // Fire a lifecycle/custom message down the card→bg→stack path (ADR-0019), with
+                // optional whitespace-separated args bound to the handler's params (ADR-0024):
+                // `fire rotate 800 600`.
+                let mut parts = rest.split_whitespace();
+                let msg = parts.next().unwrap_or("");
+                let args: Vec<String> = parts.map(str::to_string).collect();
+                let r = session.dispatch_lifecycle(msg, &args);
                 report(&r);
                 dump(&session);
             }

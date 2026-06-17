@@ -8,7 +8,7 @@
 use serde::Serialize;
 
 use crate::model::{Button, ButtonStyle, Field, Rect, Stack};
-use crate::script::{HostCmd, Me, Runtime};
+use crate::script::{HostCmd, Me, Runtime, Value};
 
 /// Smallest width/height an object may be resized to (card units), so drag-resize can't
 /// produce a zero or negative rect.
@@ -775,7 +775,7 @@ impl Session {
     /// Fire the `openCard` handler for the current card (card then stack). Call after
     /// load and after navigation.
     pub fn open_current_card(&mut self) -> DispatchResult {
-        self.dispatch_message(None, "openCard")
+        self.dispatch_message(None, "openCard", &[])
     }
 
     /// Move directly to a card index (clamped) and fire its `openCard`. Used by hosts
@@ -822,7 +822,7 @@ impl Session {
         match hit {
             Hit::Button(id) => {
                 self.toggle_if_switch(id);
-                let mut r = self.dispatch_message(Some(Me::Button(id)), "mouseUp");
+                let mut r = self.dispatch_message(Some(Me::Button(id)), "mouseUp", &[]);
                 r.needs_redraw = true;
                 r
             }
@@ -832,7 +832,7 @@ impl Session {
                 r
             }
             Hit::LockedField(id) => {
-                let mut r = self.dispatch_message(Some(Me::Field(id)), "mouseUp");
+                let mut r = self.dispatch_message(Some(Me::Field(id)), "mouseUp", &[]);
                 r.needs_redraw = true;
                 r
             }
@@ -843,9 +843,9 @@ impl Session {
     /// view-tree analogue of `dispatch_touch`. A widget fires `message` (e.g. `mouseUp`) at the
     /// node `id`; we resolve the object and run the message along the **same** message path
     /// (object → card → background → stack), so id-dispatch and a coordinate tap are behaviorally
-    /// identical. `args` is accepted for a future-proof signature (typed/lifecycle args) but is
-    /// unused in slice 1. Unknown ids are no-ops.
-    pub fn dispatch_by_id(&mut self, id: u32, message: &str, _args: &[String]) -> DispatchResult {
+    /// identical. `args` carries typed message arguments (ADR-0024) — string-centric `Value`s the
+    /// matching `on <message> a, b` handler binds by position. Unknown ids are no-ops.
+    pub fn dispatch_by_id(&mut self, id: u32, message: &str, args: &[String]) -> DispatchResult {
         let Some(me) = self.me_for_id(id) else {
             return DispatchResult::nothing();
         };
@@ -853,7 +853,8 @@ impl Session {
         if matches!(me, Me::Button(_)) && message.eq_ignore_ascii_case("mouseup") {
             self.toggle_if_switch(id);
         }
-        let mut r = self.dispatch_message(Some(me), message);
+        let vals: Vec<Value> = args.iter().map(|s| Value::from_text(s.clone())).collect();
+        let mut r = self.dispatch_message(Some(me), message, &vals);
         r.needs_redraw = true;
         r
     }
@@ -891,7 +892,7 @@ impl Session {
     /// unlocked field still goes through `dispatch_touch` for focus.)
     pub fn dispatch_gesture(&mut self, x: f32, y: f32, gesture: &str) -> DispatchResult {
         let origin = self.me_at(x, y);
-        let mut r = self.dispatch_message(origin, gesture);
+        let mut r = self.dispatch_message(origin, gesture, &[]);
         r.needs_redraw = true;
         r
     }
@@ -936,15 +937,21 @@ impl Session {
     /// Run `message` along the HyperCard message path starting at `origin` (or the card
     /// when `origin` is None): object → card → background → stack. The first matching
     /// handler runs; control flow stops there.
-    fn dispatch_message(&mut self, origin: Option<Me>, message: &str) -> DispatchResult {
+    fn dispatch_message(
+        &mut self,
+        origin: Option<Me>,
+        message: &str,
+        args: &[Value],
+    ) -> DispatchResult {
         let path = self.collect_path(origin);
         let before = self.card_index;
 
-        let mut rt = Runtime::new(&mut self.stack, self.card_index);
+        // The runtime keeps the path so a handler's custom `send` can re-dispatch along it (ADR-0024).
+        let mut rt = Runtime::new(&mut self.stack, self.card_index, path.clone());
         let mut error = None;
         let mut handled = false;
         for (src, me) in &path {
-            match rt.run_handler(src, message, *me, &[]) {
+            match rt.run_handler(src, message, *me, args) {
                 Ok(true) => {
                     handled = true;
                     break;
@@ -974,11 +981,23 @@ impl Session {
     /// Dispatch a **lifecycle message** (ADR-0019): `resume`/`suspend`/`backPressed`/`rotate`, fired
     /// by the host at Activity-lifecycle transitions. Sent with no object origin, so it bubbles
     /// card → background → stack (a stack-level `on resume` catches it). `idle` is intentionally
-    /// not used (battery). The host inspects `handled` (e.g. to consume a `backPressed`).
-    pub fn dispatch_lifecycle(&mut self, message: &str) -> DispatchResult {
-        let mut r = self.dispatch_message(None, message);
+    /// not used (battery). The host inspects `handled` (e.g. to consume a `backPressed`). `args`
+    /// carries typed message arguments (ADR-0024) — e.g. `on rotate w, h` gets the new width/height.
+    pub fn dispatch_lifecycle(&mut self, message: &str, args: &[String]) -> DispatchResult {
+        let vals: Vec<Value> = args.iter().map(|s| Value::from_text(s.clone())).collect();
+        let mut r = self.dispatch_message(None, message, &vals);
         r.needs_redraw = r.needs_redraw || r.card_changed;
         r
+    }
+
+    /// **Inject a top-level message** with typed args (ADR-0024). The host→core re-entrant delivery
+    /// point: a deferred completion (a Phase-10 `get url` result, a permission answer) arrives by
+    /// the host calling this with the message name + string args. The message bubbles the current
+    /// card's path (card → background → stack), so `on responseReceived data` catches it. Reuses the
+    /// same synchronous dispatch — no core-held callback (the core stays pure; the host owns async).
+    pub fn dispatch_message_named(&mut self, name: String, args: Vec<String>) -> DispatchResult {
+        let vals: Vec<Value> = args.into_iter().map(Value::from_text).collect();
+        self.dispatch_message(None, &name, &vals)
     }
 
     /// Gather (script source, `me`) pairs along the message path. Scripts are cloned so

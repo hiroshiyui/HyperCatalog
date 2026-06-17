@@ -139,8 +139,9 @@ reinstalling — Gradle won't see Rust source changes unless `cargoNdkBuild` rer
   The UniFFI bridge (ADR-0012) bundles JNA's `libjnidispatch.so`: pin **JNA ≥ 5.16** (we use
   5.17) — it's 16 KB-aligned on both arm64-v8a and x86_64, whereas 5.15 was only 4 KB-aligned on
   x86_64 and tripped the emulator's page-size warning.
-- The HyperTalk interpreter is a **subset** (documented in `rust/README.md`). Unknown custom
-  messages (`Stmt::Send`) are no-ops; `repeat`/property coverage is partial.
+- The HyperTalk interpreter is a **subset** (documented in `rust/README.md`). Custom messages
+  (`Stmt::Send`) re-dispatch along the message path with positional args (ADR-0024; an *unmatched*
+  name is a no-op); `repeat`/property coverage is partial.
 
 ## Test coverage
 

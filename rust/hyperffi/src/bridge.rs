@@ -342,11 +342,26 @@ impl HyperStack {
 
     /// Fire a lifecycle message (ADR-0019) — `resume`/`suspend`/`backPressed`/`rotate` — down the
     /// card → background → stack path. The host calls this at Activity-lifecycle transitions.
-    pub fn dispatch_lifecycle(&self, message: String) -> DispatchResult {
+    /// `args` carries typed message arguments (ADR-0024) — e.g. `rotate` passes the new width/height,
+    /// bound by an `on rotate w, h` handler.
+    pub fn dispatch_lifecycle(&self, message: String, args: Vec<String>) -> DispatchResult {
         self.inner
             .lock()
             .unwrap()
-            .dispatch_lifecycle(&message)
+            .dispatch_lifecycle(&message, &args)
+            .into()
+    }
+
+    /// **Inject a top-level message** with typed args (ADR-0024) — the host→core re-entrant delivery
+    /// point. When the host finishes a deferred operation it owns (a network fetch, a permission
+    /// prompt — Phase 10), it calls this with the completion message and its string args, which run
+    /// `on <name> a, b` down the card → background → stack path. The core stays synchronous; the host
+    /// owns all concurrency (no core-held callback).
+    pub fn dispatch_message(&self, name: String, args: Vec<String>) -> DispatchResult {
+        self.inner
+            .lock()
+            .unwrap()
+            .dispatch_message_named(name, args)
             .into()
     }
 

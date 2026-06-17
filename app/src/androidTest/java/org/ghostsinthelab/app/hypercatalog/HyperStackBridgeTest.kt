@@ -80,13 +80,37 @@ class HyperStackBridgeTest {
         val s = uniffi.hyperffi.HyperStack.loadYaml(src)
         try {
             s.setInsets(24f, 0f, 0f, 0f)
-            val r = s.dispatchLifecycle("resume")
+            val r = s.dispatchLifecycle("resume", emptyList())
             assertEquals(true, r.handled)
             // The `on resume` handler read the inset and wrote it into the field.
             val out = s.objectProps(10)!!
             assertEquals("24", out.text)
             // No handler for this one → not handled.
-            assertEquals(false, s.dispatchLifecycle("backPressed").handled)
+            assertEquals(false, s.dispatchLifecycle("backPressed", emptyList()).handled)
+        } finally {
+            s.destroy()
+        }
+    }
+
+    /** dispatchMessage (ADR-0024) injects a top-level message with typed string args over the .so —
+     *  the host→core re-entrant delivery point (e.g. a Phase-10 `get url` completion). The handler
+     *  binds the arg by position. */
+    @Test
+    fun dispatch_message_with_args_crosses_the_bridge() {
+        val src = """
+            name: AM
+            cards:
+              - id: 1
+                name: One
+                script: "on responseReceived data\n  put data into field \"out\"\nend responseReceived"
+                fields:
+                  - { id: 10, name: out, rect: { x: 0, y: 0, w: 10, h: 10 }, text: "" }
+        """.trimIndent()
+        val s = uniffi.hyperffi.HyperStack.loadYaml(src)
+        try {
+            val r = s.dispatchMessage("responseReceived", listOf("payload"))
+            assertEquals(true, r.handled)
+            assertEquals("payload", s.objectProps(10)!!.text)
         } finally {
             s.destroy()
         }

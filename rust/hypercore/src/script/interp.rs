@@ -79,6 +79,10 @@ enum Loc {
 /// scripts run synchronously on a tap. Covers all (incl. nested) repeats in one dispatch.
 const MAX_LOOP_ITERATIONS: u64 = 1_000_000;
 
+/// Maximum nesting of custom `send` re-dispatch in one run. Guards against a handler that sends
+/// its own message (`on a / send "a"`), which would otherwise recurse until the stack overflows.
+const MAX_SEND_DEPTH: u32 = 64;
+
 pub struct Runtime<'s> {
     pub stack: &'s mut Stack,
     pub card_index: usize,
@@ -87,16 +91,23 @@ pub struct Runtime<'s> {
     rng: u64,
     /// Remaining loop iterations for this run (reset each `Runtime::new`).
     loop_budget: u64,
+    /// The message path (cloned script sources + their `me`), so a running handler can re-dispatch
+    /// a custom `send` along the same object → card → background → stack chain (ADR-0024).
+    path: Vec<(String, Me)>,
+    /// Current custom-`send` recursion depth (bounded by `MAX_SEND_DEPTH`).
+    send_depth: u32,
 }
 
 impl<'s> Runtime<'s> {
-    pub fn new(stack: &'s mut Stack, card_index: usize) -> Runtime<'s> {
+    pub fn new(stack: &'s mut Stack, card_index: usize, path: Vec<(String, Me)>) -> Runtime<'s> {
         Runtime {
             stack,
             card_index,
             host: Vec::new(),
             rng: 0x2545_F491_4F6C_DD1D,
             loop_budget: MAX_LOOP_ITERATIONS,
+            path,
+            send_depth: 0,
         }
     }
 
@@ -289,8 +300,51 @@ impl<'s> Runtime<'s> {
                 }
                 Ok(Flow::Next)
             }
-            // Unknown custom commands are no-ops in the MVP runtime.
-            _ => Ok(Flow::Next),
+            // Any other name is a **custom message**: evaluate its arguments and re-dispatch it
+            // along the current message path (ADR-0024). An unmatched name is a silent no-op,
+            // preserving the old behavior for typos / not-yet-defined handlers.
+            _ => {
+                let vals = args
+                    .iter()
+                    .map(|e| self.eval(e, env, me))
+                    .collect::<Result<Vec<_>, _>>()?;
+                self.send_custom(name, &vals)?;
+                Ok(Flow::Next)
+            }
+        }
+    }
+
+    /// Re-dispatch a custom message along the message path the runtime was built with: the first
+    /// object whose script defines `on <name>` runs it, with `me` bound to **that** object (its
+    /// defining owner, per HyperCard semantics — not the sender). Bounded by `MAX_SEND_DEPTH`.
+    fn send_custom(&mut self, name: &str, args: &[Value]) -> Result<bool, String> {
+        if self.send_depth >= MAX_SEND_DEPTH {
+            return Err(format!(
+                "send exceeded the maximum nesting of {MAX_SEND_DEPTH} (a handler may send itself)"
+            ));
+        }
+        self.send_depth += 1;
+        // Clone the path so we can call `&mut self` handlers while iterating it.
+        let path = self.path.clone();
+        let mut ran = false;
+        let mut err = None;
+        for (src, owner) in &path {
+            match self.run_handler(src, name, *owner, args) {
+                Ok(true) => {
+                    ran = true;
+                    break;
+                }
+                Ok(false) => continue,
+                Err(e) => {
+                    err = Some(e);
+                    break;
+                }
+            }
+        }
+        self.send_depth -= 1;
+        match err {
+            Some(e) => Err(e),
+            None => Ok(ran),
         }
     }
 

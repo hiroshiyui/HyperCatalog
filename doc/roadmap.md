@@ -134,12 +134,17 @@ both render targets surface them. `send intent` (with a returned result) and loc
 (`get/set the pref "key"`) need read-state back into the script and are **deferred to Phase 9** (the
 async/typed-args foundation). Demoed in `assets/layout_demo.yaml` (Website / Share / Toast row).
 
-### Phase 9 — Language & async foundation *(the enabler)*
+### Phase 9 — Language & async foundation *(done — the enabler)*
 
-Two cross-cutting capabilities, each its own ADR: **typed message args** (`on rotate w,h`,
-`on permissionResult cam, granted`, handler params); and an **async bridge channel** (host→core
-callbacks for deferred completions — the standing [ADR-0008](adr/0008-native-view-rendering.md) open
-question). Largest/most architectural; unblocks Phase 10.
+Two cross-cutting capabilities in one ADR ([ADR-0024](adr/0024-typed-message-args-and-async-foundation.md)):
+**typed message args** — handlers take positional, string-centric arguments (`on rotate w,h` now
+gets the new size; `dispatch_by_id`/`dispatch_lifecycle` carry args), and a **custom-message `send`
+up the path** (a bare `greet "World"` re-dispatches object → card → background → stack, bounded
+against self-recursion; `me` is the defining object — also closing the Phase-3 custom-dispatch gap);
+and the **async-delivery foundation** — `HyperStack.dispatch_message(name, args)`, the host→core
+re-entrant entry point a deferred completion calls. This **resolves ADR-0008 open question #2**:
+host-driven re-entrant dispatch (the host owns concurrency; the core stays synchronous and holds no
+callback), not a core-held callback channel. Unblocks Phase 10.
 
 ### Phase 10 — Async platform facilities
 
@@ -183,3 +188,4 @@ Rust-native — see [ADR-0001](adr/0001-rust-native-hypertalk.md).
 - [ADR-0021 — Native component palette](adr/0021-component-palette.md)
 - [ADR-0022 — Accessibility & seeded color scheme](adr/0022-accessibility-and-seeded-theme.md)
 - [ADR-0023 — Platform escape hatches (`open url`/`share`/`toast`)](adr/0023-platform-escape-hatches.md)
+- [ADR-0024 — Typed message args & async-delivery foundation](adr/0024-typed-message-args-and-async-foundation.md)

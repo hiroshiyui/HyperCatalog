@@ -49,13 +49,21 @@ The Android app builds the `.so` automatically: `./gradlew :app:assembleDebug` r
 
 ## Supported HyperTalk subset (MVP)
 
-Handlers `on <msg> ... end <msg>` (`mouseUp`, `openCard`, `openStack`); commands `put`,
+Handlers `on <msg> [param, param…] ... end <msg>` (`mouseUp`, `openCard`, `openStack`, and custom
+names) — **handler parameters** bind positional message arguments (ADR-0024); commands `put`,
 `get`, `set ... of ... to`, `go [to] next|previous|first|last|card "x"|card N|stack "x"`, `answer`,
 `beep`, `show stacks`, `open url <expr>`, `share <expr>`, `toast <expr>` (host-realized escape hatches,
 ADR-0023), `add/subtract/multiply/divide`; `if/then/else/end if`; `repeat with`/`repeat N times`;
 expressions with `& && + - * / mod`, comparisons, `the <prop> of <object>`,
 `the number of cards`, `length()`, `field "name"` contents. Message path:
 object → card → background → stack.
+
+A **custom message** is sent by naming it as a command with optional args (`greet "World"`): it
+re-dispatches along the message path (sender → card → background → stack), the first `on greet`
+handler runs with `me` bound to its *defining* object, an unmatched name is a silent no-op, and
+self-recursion is depth-bounded (ADR-0024). The host can inject a top-level message —
+`HyperStack.dispatch_message(name, args)` — to deliver a deferred result (e.g. `on responseReceived
+data`); the core runs synchronously and the host owns any concurrency.
 
 Touchscreen gestures (the post-WIMP companion to `mouseUp`) are dispatched as messages along
 the same path, so a stack-level `on swipeLeft` catches a swipe anywhere while an object can

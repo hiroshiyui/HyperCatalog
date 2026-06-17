@@ -510,7 +510,7 @@ cards:
       - { id: 10, name: out, rect: { x: 0, y: 0, w: 10, h: 10 }, text: "" }
 "#;
     let mut s = Session::load_from_yaml(yaml).unwrap();
-    let r = s.dispatch_lifecycle("resume");
+    let r = s.dispatch_lifecycle("resume", &[]);
     assert!(r.error.is_none());
     assert!(r.handled);
     assert_eq!(field_text(&s, 10), "resumed");
@@ -519,9 +519,168 @@ cards:
 #[test]
 fn unhandled_lifecycle_message_reports_not_handled() {
     let mut s = Session::load_from_json(&sample_json()).unwrap();
-    let r = s.dispatch_lifecycle("backPressed"); // no handler anywhere
+    let r = s.dispatch_lifecycle("backPressed", &[]); // no handler anywhere
     assert!(r.error.is_none());
     assert!(!r.handled);
+}
+
+// --- ADR-0024 typed message args + custom-message send + async-delivery entry point ---
+
+/// A bare custom-message command (`greet "World"`) is a HyperCard-style message send: it
+/// re-dispatches up the path, and a `on greet n` handler binds the argument.
+#[test]
+fn custom_message_send_bubbles_with_args() {
+    let yaml = r#"
+name: S
+script: |-
+  on greet n
+    put "hi " & n into field "out"
+  end greet
+cards:
+  - id: 1
+    name: One
+    fields:
+      - { id: 10, name: out, rect: { x: 0, y: 0, w: 10, h: 10 }, text: "" }
+    buttons:
+      - { id: 20, name: sender, rect: { x: 0, y: 20, w: 10, h: 10 },
+          script: "on mouseUp\n  greet \"World\"\nend mouseUp" }
+"#;
+    let mut s = Session::load_from_yaml(yaml).unwrap();
+    let r = s.dispatch_by_id(20, "mouseUp", &[]);
+    assert!(r.error.is_none(), "error: {:?}", r.error);
+    assert_eq!(field_text(&s, 10), "hi World");
+}
+
+/// Inside the invoked handler, `me` is the object whose script *defines* it (here the card),
+/// not the sender button — HyperCard semantics.
+#[test]
+fn custom_message_me_is_the_defining_object() {
+    let yaml = r#"
+name: S
+cards:
+  - id: 1
+    name: Greetings
+    script: |-
+      on greet
+        put the short name of me into field "out"
+      end greet
+    fields:
+      - { id: 10, name: out, rect: { x: 0, y: 0, w: 10, h: 10 }, text: "" }
+    buttons:
+      - { id: 20, name: sender, rect: { x: 0, y: 20, w: 10, h: 10 },
+          script: "on mouseUp\n  greet\nend mouseUp" }
+"#;
+    let mut s = Session::load_from_yaml(yaml).unwrap();
+    let r = s.dispatch_by_id(20, "mouseUp", &[]);
+    assert!(r.error.is_none(), "error: {:?}", r.error);
+    assert_eq!(field_text(&s, 10), "Greetings"); // the card's name, not "sender"
+}
+
+/// A handler that sends its own message recurses until the depth budget trips — a bounded
+/// error, never a stack overflow.
+#[test]
+fn custom_message_recursion_is_bounded() {
+    let yaml = r#"
+name: S
+script: |-
+  on boom
+    boom
+  end boom
+cards:
+  - id: 1
+    name: One
+    buttons:
+      - { id: 20, name: go, rect: { x: 0, y: 0, w: 10, h: 10 },
+          script: "on mouseUp\n  boom\nend mouseUp" }
+"#;
+    let mut s = Session::load_from_yaml(yaml).unwrap();
+    let r = s.dispatch_by_id(20, "mouseUp", &[]);
+    let err = r.error.expect("expected a bounded-recursion error");
+    assert!(err.contains("nesting"), "unexpected error: {err}");
+}
+
+/// An unmatched custom message is a silent no-op (the pre-ADR-0024 behavior for typos).
+#[test]
+fn unknown_custom_message_is_noop() {
+    let yaml = r#"
+name: S
+cards:
+  - id: 1
+    name: One
+    fields:
+      - { id: 10, name: out, rect: { x: 0, y: 0, w: 10, h: 10 }, text: "keep" }
+    buttons:
+      - { id: 20, name: go, rect: { x: 0, y: 20, w: 10, h: 10 },
+          script: "on mouseUp\n  nosuchhandler \"x\"\nend mouseUp" }
+"#;
+    let mut s = Session::load_from_yaml(yaml).unwrap();
+    let r = s.dispatch_by_id(20, "mouseUp", &[]);
+    assert!(r.error.is_none(), "error: {:?}", r.error);
+    assert_eq!(field_text(&s, 10), "keep");
+}
+
+/// `on rotate w, h` binds the width/height the host passes through `dispatch_lifecycle`.
+#[test]
+fn rotate_lifecycle_binds_width_height() {
+    let yaml = r#"
+name: S
+script: |-
+  on rotate w, h
+    put w & "x" & h into field "out"
+  end rotate
+cards:
+  - id: 1
+    name: One
+    fields:
+      - { id: 10, name: out, rect: { x: 0, y: 0, w: 10, h: 10 }, text: "" }
+"#;
+    let mut s = Session::load_from_yaml(yaml).unwrap();
+    let r = s.dispatch_lifecycle("rotate", &["800".to_string(), "600".to_string()]);
+    assert!(r.error.is_none(), "error: {:?}", r.error);
+    assert_eq!(field_text(&s, 10), "800x600");
+}
+
+/// Id-addressed dispatch carries typed args (ADR-0024) to the target's handler params.
+#[test]
+fn dispatch_by_id_binds_args() {
+    let yaml = r#"
+name: S
+cards:
+  - id: 1
+    name: One
+    fields:
+      - { id: 10, name: out, rect: { x: 0, y: 0, w: 10, h: 10 }, text: "" }
+    buttons:
+      - { id: 20, name: go, rect: { x: 0, y: 20, w: 10, h: 10 },
+          script: "on ping a\n  put a into field \"out\"\nend ping" }
+"#;
+    let mut s = Session::load_from_yaml(yaml).unwrap();
+    let r = s.dispatch_by_id(20, "ping", &["pong".to_string()]);
+    assert!(r.error.is_none(), "error: {:?}", r.error);
+    assert_eq!(field_text(&s, 10), "pong");
+}
+
+/// The async-delivery entry point: a host-injected message runs its handler with the string args.
+/// This is how a deferred completion (`get url` → `on responseReceived data`) arrives in Phase 10.
+#[test]
+fn dispatch_message_named_delivers_to_handler() {
+    let yaml = r#"
+name: S
+cards:
+  - id: 1
+    name: One
+    script: |-
+      on responseReceived data
+        put data into field "out"
+      end responseReceived
+    fields:
+      - { id: 10, name: out, rect: { x: 0, y: 0, w: 10, h: 10 }, text: "" }
+"#;
+    let mut s = Session::load_from_yaml(yaml).unwrap();
+    let r = s.dispatch_message_named("responseReceived".to_string(), vec!["payload".to_string()]);
+    assert!(r.error.is_none(), "error: {:?}", r.error);
+    assert!(r.handled);
+    assert_eq!(field_text(&s, 10), "payload");
 }
 
 // --- ADR-0018 Material roles + textRole + theme ---
