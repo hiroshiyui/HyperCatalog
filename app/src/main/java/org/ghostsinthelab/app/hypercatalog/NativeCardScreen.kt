@@ -343,11 +343,21 @@ private fun RenderNode(
         // Content controls (ADR-0021). Image loads a bundled asset by name (remote URLs are Phase
         // 10); chip is a Material filter/assist chip; divider is a thin rule.
         "image" -> {
-            val bitmap = remember(node.prop("source")) { assetImage(context, node.prop("source")) }
-            if (bitmap != null) {
-                Image(bitmap = bitmap, contentDescription = node.prop("title"), modifier = modifier)
+            val source = node.prop("source")
+            if (source.startsWith("http://") || source.startsWith("https://")) {
+                // Remote source (ADR-0026): Coil loads it asynchronously off the UI thread.
+                coil.compose.AsyncImage(
+                    model = source,
+                    contentDescription = node.prop("title"),
+                    modifier = modifier,
+                )
             } else {
-                Text("[image: ${node.prop("source")}]", style = node.nodeTextStyle(), modifier = modifier)
+                val bitmap = remember(source) { assetImage(context, source) }
+                if (bitmap != null) {
+                    Image(bitmap = bitmap, contentDescription = node.prop("title"), modifier = modifier)
+                } else {
+                    Text("[image: $source]", style = node.nodeTextStyle(), modifier = modifier)
+                }
             }
         }
 

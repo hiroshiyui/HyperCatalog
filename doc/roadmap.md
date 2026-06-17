@@ -146,11 +146,17 @@ re-entrant entry point a deferred completion calls. This **resolves ADR-0008 ope
 host-driven re-entrant dispatch (the host owns concurrency; the core stays synchronous and holds no
 callback), not a core-held callback channel. Unblocks Phase 10.
 
-### Phase 10 — Async platform facilities
+### Phase 10 — Async platform facilities *(done)*
 
-On the Phase 9 foundation: networking (`get url` → `on responseReceived data`), permissions
-(`ask permission` → `on permissionResult`), snackbar actions, scheduled/notification messages, and
-remote `image` sources.
+On the Phase 9 foundation, each facility = a request `HostEffect` performed off the core + a
+completion message delivered back via `dispatch_message`
+([ADR-0025](adr/0025-async-platform-facilities.md), dependency-free): **networking** (`get url` →
+`on responseReceived data, status, url`), **permissions** (`ask permission` → `on permissionResult
+name, granted`), **snackbar actions** (`snackbar text action label send msg`), and **immediate
+notifications** (`notify title, body send msg`; tap re-enters via `PendingIntent`). **Remote `image`
+sources** load via Coil in the native target ([ADR-0026](adr/0026-remote-images-coil.md); Canvas shows
+a placeholder). Demoed on the "Async" card of `assets/layout_demo.yaml`. Deferred to Phase 11+:
+scheduled notifications (WorkManager), request correlation tokens, `send … to <object>`.
 
 ### Phase 11 — Motion, navigation & layout completion
 
@@ -189,3 +195,5 @@ Rust-native — see [ADR-0001](adr/0001-rust-native-hypertalk.md).
 - [ADR-0022 — Accessibility & seeded color scheme](adr/0022-accessibility-and-seeded-theme.md)
 - [ADR-0023 — Platform escape hatches (`open url`/`share`/`toast`)](adr/0023-platform-escape-hatches.md)
 - [ADR-0024 — Typed message args & async-delivery foundation](adr/0024-typed-message-args-and-async-foundation.md)
+- [ADR-0025 — Async platform facilities (networking/permissions/snackbar/notifications)](adr/0025-async-platform-facilities.md)
+- [ADR-0026 — Remote `image` sources via Coil](adr/0026-remote-images-coil.md)

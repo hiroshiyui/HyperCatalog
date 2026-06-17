@@ -98,6 +98,7 @@ dependencies {
     implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.compose.material3)
     implementation(libs.androidx.activity.compose)
+    implementation(libs.coil.compose) // remote `image` sources in the native target (ADR-0026)
     implementation(libs.androidx.compose.ui.tooling.preview)
     debugImplementation(libs.androidx.compose.ui.tooling)
     // UniFFI-generated Kotlin bindings load the native library via JNA (ADR-0012). 5.16+ ships a
