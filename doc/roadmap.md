@@ -2,7 +2,7 @@
 
 HyperCatalog is a HyperCard-like UI player with a HyperTalk dialect implemented directly in
 Rust (lexer → parser → AST → interpreter). The Rust core (`hypercore`) is platform-agnostic;
-Android is the reference host, driven through a small JSON-over-JNI bridge.
+Android is the reference host, driven through a small, generated **UniFFI** bridge (ADR-0012).
 
 This roadmap states where we are and the order we intend to grow. Decisions that shape the
 architecture are recorded as ADRs under [`doc/adr/`](adr/).
@@ -18,10 +18,10 @@ architecture are recorded as ADRs under [`doc/adr/`](adr/).
   `go`, `answer`/`beep`, `add`/`subtract`/`multiply`/`divide`, `if`/`repeat`, full expression
   precedence, field/button/card/stack property get/set, and `length`/`random`/`trunc`. The
   supported surface is documented in `rust/README.md`.
-- **JSON-over-JNI bridge.** Core player calls (`nativeLoad`, `nativeOpenCard`, `nativeRender`,
-  `nativeDispatchTouch`, `nativeDispatchGesture`, `nativeSetFieldText`, `nativeToJson`,
-  `nativeFree`), plus the authoring calls, exchanging JSON strings. See
-  [ADR-0002](adr/0002-json-string-jni-bridge.md).
+- **UniFFI typed bridge.** The host drives a generated, typed `HyperStack` object (render,
+  dispatch, gestures, authoring) — no hand-written JNI, no JSON on the wire. See
+  [ADR-0012](adr/0012-uniffi-bridge.md) (supersedes the original JSON-over-JNI bridge,
+  [ADR-0002](adr/0002-json-string-jni-bridge.md)).
 - **Sample content.** `assets/sample.json` (demo), `assets/productivity.json` (To-Do,
   Counters, Tip Split, Calculator, Temperature, Length — the default stack), and
   `assets/gestures.json` (a 3-card swipe/long-press/double-tap demo for the touch gestures).

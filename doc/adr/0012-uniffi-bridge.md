@@ -1,7 +1,9 @@
 # ADR-0012 — UniFFI-generated typed bridge (supersedes ADR-0002)
 
-- Status: **Accepted** — supersedes [ADR-0002](0002-json-string-jni-bridge.md); migration staged
-  and in progress (not yet implemented).
+- Status: **Accepted & implemented** — supersedes [ADR-0002](0002-json-string-jni-bridge.md). The
+  hand-written JSON JNI bridge is removed; the host drives a typed `HyperStack`. One residual JSON
+  string remains: the authoring **props blob** (`object_props`/`set_object_props`), to be typed
+  next.
 - Date: 2026-06-17
 - Related: supersedes [ADR-0002](0002-json-string-jni-bridge.md); complements
   [ADR-0011](0011-yaml-stack-files.md) (YAML *files*; this is the *bridge*); unblocks the async
