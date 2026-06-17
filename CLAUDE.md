@@ -56,10 +56,14 @@ Android (Kotlin host, thin)                    rust/ workspace
     **group** nodes referencing objects by id, with per-object `weight` + group `padding`) makes
     native mode reflow into a grid; `ViewTree` carries `layout`/`padding`, group `ViewNode`s populate
     `child_ids`. It's an **overlay** — the Canvas path/hit-test/dispatch are untouched and use the
-    absolute `rect`s. **Switch kind (ADR-0015):** a `Button` with `checked: Option<bool>` projects
-    as `kind:"switch"`, rendered as a Material `Switch` (Canvas: ☑/☐ prefix); the core auto-toggles
-    `checked` before `mouseUp`. Still deferred: `grid`/`free`/`constraints` modes, Material
-    roles/theming, more kinds, lifecycle messages.
+    absolute `rect`s. The native dialect now spans (additive slices, ADR-0014…0020): layout modes
+    `column`/`row`/`grid`/`free` (+ `the layout/padding of this card` scripting), the **`switch`**
+    kind (a `Button` with `checked`, auto-toggled before `mouseUp`; Canvas shows ☑/☐), **Material
+    roles** (`the role of`), **`textRole`** + stack **theme/accentColor** (a seeded `MaterialTheme`,
+    Material You on Android 12+), **lifecycle messages** (`resume`/`suspend`/`backPressed`/`rotate`
+    via `dispatchLifecycle`; `DispatchResult.handled` lets the host consume back), and **safe-area
+    insets** (`set_insets` → `the safeTop/safeBottom/… of this card`, dp). Still deferred: the
+    `constraints`/anchor solver, `on rotate w,h` args, and more kinds (slider/chip/image/…).
 - **Persistence** is layered by *what the data is* (ADR-0013): **document content vs. session view
   state**.
   - *Document content* → **YAML files**, end to end (ADR-0011). Bundled assets are `assets/*.yaml`

@@ -76,4 +76,14 @@ Object properties via `get`/`set the <prop> of <object>`:
   `textStyle` (comma list of `bold`/`italic`/`underline`; reads back `plain` when unset),
   `textAlign` (`left`/`center`/`right`, applied to fields). See
   [`doc/adr/0007-text-styling.md`](../doc/adr/0007-text-styling.md).
+- native dialect (ADR-0014…0020; honored by the Compose render target, ignored by Canvas):
+  buttons `checked` (a button with `checked` is a **switch**, auto-toggled before `mouseUp`),
+  `role` (`filled`/`tonal`/`outlined`/`text`/`elevated`/`fab`), buttons & fields `weight` (flex in
+  a layout group); fields `textRole` (Material type scale); card `layout` (`column`/`row`/`grid`/
+  `free`) + `padding`, read-only `safeTop`/`safeRight`/`safeBottom`/`safeLeft` (dp); stack `theme`
+  (`light`/`dark`/`system`/`dynamic`) + `accentColor`, and the same `safe*` insets.
 - card & stack: `name`, `number`.
+
+Lifecycle messages (ADR-0019) are fired by the host at Activity transitions and bubble the message
+path: `on resume`, `on suspend`, `on backPressed` (a handler consumes the system back), `on rotate`.
+HyperCard's `idle` busy-loop is intentionally dropped.
