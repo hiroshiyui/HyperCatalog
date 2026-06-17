@@ -21,6 +21,12 @@ to build.
 
   Whatever you type or tally is remembered the next time you open the app.
 
+- **Switch stacks.** Tap **Stacks** to open another bundled stack — there's a *Welcome* demo and a
+  *Gesture Demo* alongside *Productivity*. Each stack remembers its own edits.
+
+- **Touch, not just tap.** Beyond a tap, a stack's scripts can react to **swipes**, **long-press**,
+  and **double-tap** — e.g. the Gesture Demo swipes between cards and long-presses a button.
+
 - **Make your own.** Tap **Edit** to switch into authoring mode, where you can:
   - add buttons and fields, then **drag to move** and **drag a corner to resize** them
   - set an object's name, label, style, and other properties
