@@ -64,22 +64,29 @@ pub struct ViewTree {
     pub card_name: String,
     pub card_index: usize,
     pub card_count: usize,
+    /// Root container arrangement: `"column"` or `"row"` (ADR-0014). Always `"column"` for a
+    /// card with no layout overlay (the flat fallback).
+    pub layout: String,
+    /// Root container padding (abstract units; the host maps to dp). 0 when no overlay.
+    pub padding: f32,
     /// Top-level node ids, in render (z) order.
     pub root_ids: Vec<u32>,
     pub nodes: Vec<ViewNode>,
 }
 
 /// One node in a [`ViewTree`]. `kind` and prop *keys* are abstract UI vocabulary (`button`,
-/// `field`, `text`, `locked`); the host maps them to widgets and degrades gracefully on unknowns.
+/// `field`, `group`, `text`, `locked`); the host maps them to widgets/containers and degrades
+/// gracefully on unknowns.
 #[derive(Debug, Serialize, PartialEq)]
 pub struct ViewNode {
     pub id: u32,
-    /// Abstract UI kind: `"button"` or `"field"` in slice 1 (taxonomy grows in later ADRs).
+    /// Abstract UI kind: `"button"`, `"field"`, or `"group"` (a layout container; ADR-0014).
     pub kind: String,
     /// Stable, ordered abstract properties (a `Vec`, not a map, so the desktop `tree` dump and
-    /// golden tests are deterministic).
+    /// golden tests are deterministic). Group nodes carry `mode`/`padding`/`weight`; objects
+    /// carry their abstract props plus `weight`.
     pub props: Vec<Prop>,
-    /// Child node ids; empty in slice 1 (one level), populated when containers land.
+    /// Child node ids — empty for objects; a group's laid-out children (ADR-0014).
     pub child_ids: Vec<u32>,
 }
 
@@ -230,29 +237,43 @@ impl Session {
     /// meaning, **not geometry**. The host realizes it as Material widgets.
     pub fn render_view_tree(&self) -> ViewTree {
         let card = &self.stack.cards[self.card_index];
+        let bg = card.background_id.and_then(|id| self.stack.background(id));
         let mut nodes = Vec::new();
-        let mut root_ids = Vec::new();
 
-        if let Some(bg) = card.background_id.and_then(|id| self.stack.background(id)) {
-            for f in &bg.fields {
+        let (layout, padding, root_ids) = if let Some(root) = &card.layout {
+            // Layout overlay (ADR-0014): walk the group tree, referencing objects by id. Group
+            // nodes get synthetic ids above any object id, so they never collide or dispatch.
+            let mut next_group_id = max_object_id(card, bg) + 1;
+            let root_ids =
+                project_children(card, bg, &root.children, &mut next_group_id, &mut nodes);
+            (root.mode.clone(), root.padding, root_ids)
+        } else {
+            // Legacy flat fallback (slice 1): all objects, background under card, as a column.
+            let mut root_ids = Vec::new();
+            if let Some(bg) = bg {
+                for f in &bg.fields {
+                    push_field_node(&mut nodes, &mut root_ids, f);
+                }
+                for b in &bg.buttons {
+                    push_button_node(&mut nodes, &mut root_ids, b);
+                }
+            }
+            for f in &card.fields {
                 push_field_node(&mut nodes, &mut root_ids, f);
             }
-            for b in &bg.buttons {
+            for b in &card.buttons {
                 push_button_node(&mut nodes, &mut root_ids, b);
             }
-        }
-        for f in &card.fields {
-            push_field_node(&mut nodes, &mut root_ids, f);
-        }
-        for b in &card.buttons {
-            push_button_node(&mut nodes, &mut root_ids, b);
-        }
+            ("column".to_string(), 0.0, root_ids)
+        };
 
         ViewTree {
             stack_name: self.stack.name.clone(),
             card_name: card.name.clone(),
             card_index: self.card_index,
             card_count: self.stack.cards.len(),
+            layout,
+            padding,
             root_ids,
             nodes,
         }
@@ -395,6 +416,7 @@ impl Session {
                     text_size: 16.0,
                     text_style: String::new(),
                     text_align: String::new(),
+                    weight: 0.0,
                 });
                 Some(id)
             }
@@ -416,6 +438,7 @@ impl Session {
                     text_size: 16.0,
                     text_style: String::new(),
                     text_align: String::new(),
+                    weight: 0.0,
                 });
                 Some(id)
             }
@@ -1027,10 +1050,26 @@ fn button_cmd(b: &crate::model::Button) -> DrawCmd {
     }
 }
 
-/// Project a field into a [`ViewNode`] with abstract props only (no geometry — ADR-0008).
-fn push_field_node(nodes: &mut Vec<ViewNode>, roots: &mut Vec<u32>, f: &crate::model::Field) {
-    roots.push(f.id);
-    nodes.push(ViewNode {
+/// The largest object id on a card and its background — the base for allocating collision-free
+/// synthetic group ids in the layout overlay (ADR-0014). 0 if the card and bg have no objects.
+fn max_object_id(card: &crate::model::Card, bg: Option<&crate::model::Background>) -> u32 {
+    let card_ids = card
+        .fields
+        .iter()
+        .map(|f| f.id)
+        .chain(card.buttons.iter().map(|b| b.id));
+    let bg_ids = bg.into_iter().flat_map(|bg| {
+        bg.fields
+            .iter()
+            .map(|f| f.id)
+            .chain(bg.buttons.iter().map(|b| b.id))
+    });
+    card_ids.chain(bg_ids).max().unwrap_or(0)
+}
+
+/// Build a field [`ViewNode`] with abstract props only (no geometry — ADR-0008).
+fn field_node(f: &crate::model::Field) -> ViewNode {
+    ViewNode {
         id: f.id,
         kind: "field".to_string(),
         child_ids: Vec::new(),
@@ -1064,14 +1103,13 @@ fn push_field_node(nodes: &mut Vec<ViewNode>, roots: &mut Vec<u32>, f: &crate::m
                 value: f.text_align.clone(),
             },
         ],
-    });
+    }
 }
 
-/// Project a button into a [`ViewNode`]. `style` is the existing abstract `ButtonStyle` string
+/// Build a button [`ViewNode`]. `style` is the existing abstract `ButtonStyle` string
 /// (`rounded`/`rectangle`/`transparent`); the host maps it to a Material widget.
-fn push_button_node(nodes: &mut Vec<ViewNode>, roots: &mut Vec<u32>, b: &crate::model::Button) {
-    roots.push(b.id);
-    nodes.push(ViewNode {
+fn button_node(b: &crate::model::Button) -> ViewNode {
+    ViewNode {
         id: b.id,
         kind: "button".to_string(),
         child_ids: Vec::new(),
@@ -1105,7 +1143,115 @@ fn push_button_node(nodes: &mut Vec<ViewNode>, roots: &mut Vec<u32>, b: &crate::
                 value: b.text_align.clone(),
             },
         ],
+    }
+}
+
+/// Legacy (no-layout) flat projection: push a field node and its root id.
+fn push_field_node(nodes: &mut Vec<ViewNode>, roots: &mut Vec<u32>, f: &crate::model::Field) {
+    roots.push(f.id);
+    nodes.push(field_node(f));
+}
+
+/// Legacy (no-layout) flat projection: push a button node and its root id.
+fn push_button_node(nodes: &mut Vec<ViewNode>, roots: &mut Vec<u32>, b: &crate::model::Button) {
+    roots.push(b.id);
+    nodes.push(button_node(b));
+}
+
+/// Resolve a layout-overlay object reference to a [`ViewNode`] (with a `weight` prop appended),
+/// searching the card then the background. `None` if no object on the card/bg has that id —
+/// such a reference is silently skipped (ADR-0014's unreferenced/dangling caveat).
+fn object_node(
+    card: &crate::model::Card,
+    bg: Option<&crate::model::Background>,
+    id: u32,
+) -> Option<ViewNode> {
+    let mut node = if let Some(f) = card.fields.iter().find(|f| f.id == id) {
+        field_node(f)
+    } else if let Some(b) = card.buttons.iter().find(|b| b.id == id) {
+        button_node(b)
+    } else if let Some(bg) = bg {
+        if let Some(f) = bg.fields.iter().find(|f| f.id == id) {
+            field_node(f)
+        } else if let Some(b) = bg.buttons.iter().find(|b| b.id == id) {
+            button_node(b)
+        } else {
+            return None;
+        }
+    } else {
+        return None;
+    };
+    let weight = card
+        .fields
+        .iter()
+        .find(|f| f.id == id)
+        .map(|f| f.weight)
+        .or_else(|| card.buttons.iter().find(|b| b.id == id).map(|b| b.weight))
+        .or_else(|| {
+            bg.and_then(|bg| {
+                bg.fields
+                    .iter()
+                    .find(|f| f.id == id)
+                    .map(|f| f.weight)
+                    .or_else(|| bg.buttons.iter().find(|b| b.id == id).map(|b| b.weight))
+            })
+        })
+        .unwrap_or(0.0);
+    node.props.push(Prop {
+        key: "weight".to_string(),
+        value: weight.to_string(),
     });
+    Some(node)
+}
+
+/// Walk a layout group's children into [`ViewNode`]s (ADR-0014), returning the ordered child-id
+/// list for the container. Object refs reuse [`object_node`]; nested groups get a synthetic id
+/// (allocated from `next_group_id`) and recurse. Dangling object refs are skipped.
+fn project_children(
+    card: &crate::model::Card,
+    bg: Option<&crate::model::Background>,
+    children: &[crate::model::LayoutChild],
+    next_group_id: &mut u32,
+    nodes: &mut Vec<ViewNode>,
+) -> Vec<u32> {
+    use crate::model::LayoutChild;
+    let mut ids = Vec::new();
+    for child in children {
+        match child {
+            LayoutChild::Object(id) => {
+                if let Some(node) = object_node(card, bg, *id) {
+                    ids.push(node.id);
+                    nodes.push(node);
+                }
+            }
+            LayoutChild::Group(g) => {
+                let gid = *next_group_id;
+                *next_group_id += 1;
+                let child_ids = project_children(card, bg, &g.children, next_group_id, nodes);
+                nodes.push(ViewNode {
+                    id: gid,
+                    kind: "group".to_string(),
+                    child_ids,
+                    props: vec![
+                        Prop {
+                            key: "mode".to_string(),
+                            value: g.mode.clone(),
+                        },
+                        Prop {
+                            key: "padding".to_string(),
+                            value: g.padding.to_string(),
+                        },
+                        Prop {
+                            key: "weight".to_string(),
+                            value: g.weight.to_string(),
+                        },
+                    ],
+                });
+                ids.push(gid);
+            }
+        }
+    }
+    ids
 }
 
 fn host_effect(c: &HostCmd) -> HostEffect {

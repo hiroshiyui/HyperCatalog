@@ -54,6 +54,10 @@ pub struct Button {
     /// `left`, `center`, or `right`; "" = host default (left for fields).
     #[serde(default)]
     pub text_align: String,
+    /// Flex weight within a `row`/`column` layout group (native render target, ADR-0014);
+    /// 0 = no flex (natural/full size). Ignored by the Canvas target.
+    #[serde(default)]
+    pub weight: f32,
 }
 
 impl Button {
@@ -91,6 +95,10 @@ pub struct Field {
     /// `left`, `center`, or `right`; "" = host default (left for fields).
     #[serde(default)]
     pub text_align: String,
+    /// Flex weight within a `row`/`column` layout group (native render target, ADR-0014);
+    /// 0 = no flex (natural/full size). Ignored by the Canvas target.
+    #[serde(default)]
+    pub weight: f32,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -119,6 +127,39 @@ pub struct Card {
     pub buttons: Vec<Button>,
     #[serde(default)]
     pub script: String,
+    /// Optional **layout overlay** for the native render target (ADR-0014): a tree of `row`/
+    /// `column` groups that arrange this card's objects (referenced by id) into a responsive
+    /// grid. `None` = no layout → the native renderer falls back to a flat column, and the
+    /// Canvas target ignores this entirely (it always uses each object's absolute `rect`).
+    #[serde(default)]
+    pub layout: Option<LayoutGroup>,
+}
+
+/// A container node in a card's layout overlay (ADR-0014): arranges its `children` in a `row`
+/// or `column`. Carries no geometry — only an abstract `mode`, `padding`, and flex `weight`
+/// (within a parent group). The host maps these onto real layout (dp, Compose Row/Column).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct LayoutGroup {
+    #[serde(default = "default_mode")]
+    pub mode: String,
+    #[serde(default)]
+    pub padding: f32,
+    #[serde(default)]
+    pub weight: f32,
+    #[serde(default)]
+    pub children: Vec<LayoutChild>,
+}
+
+/// One child of a [`LayoutGroup`]: either a nested group (a map) or an existing object referenced
+/// by id (a bare number). **Untagged** — the two forms are structurally disjoint (map vs number),
+/// so it reads cleanly as `children: [10, 20, { mode: row, children: [...] }]` in both YAML and
+/// JSON (and round-trips in both, unlike an externally-tagged enum, which yaml_serde would emit as
+/// a `!group` YAML tag).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum LayoutChild {
+    Group(LayoutGroup),
+    Object(u32),
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -147,4 +188,8 @@ fn default_true() -> bool {
 
 fn default_text_size() -> f32 {
     16.0
+}
+
+fn default_mode() -> String {
+    "column".to_string()
 }

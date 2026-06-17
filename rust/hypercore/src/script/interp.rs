@@ -461,6 +461,7 @@ impl<'s> Runtime<'s> {
                     "textsize" => Value::Number(f.text_size as f64),
                     "textstyle" => Value::from_text(text_style_get(&f.text_style)),
                     "textalign" => Value::from_text(f.text_align.clone()),
+                    "weight" => Value::Number(f.weight as f64),
                     _ => geom_get(&prop, f.rect).unwrap_or(Value::Empty),
                 })
             }
@@ -479,6 +480,7 @@ impl<'s> Runtime<'s> {
                     "textsize" => Value::Number(b.text_size as f64),
                     "textstyle" => Value::from_text(text_style_get(&b.text_style)),
                     "textalign" => Value::from_text(b.text_align.clone()),
+                    "weight" => Value::Number(b.weight as f64),
                     _ => geom_get(&prop, b.rect).unwrap_or(Value::Empty),
                 })
             }
@@ -528,6 +530,11 @@ impl<'s> Runtime<'s> {
                     }
                     "textstyle" => field.text_style = v.as_text(),
                     "textalign" => field.text_align = v.as_text(),
+                    "weight" => {
+                        if let Some(n) = v.as_number() {
+                            field.weight = n as f32;
+                        }
+                    }
                     _ => {
                         if !geom_set(&prop, &mut field.rect, &v) {
                             return Err(format!("unknown field property '{prop}'"));
@@ -553,6 +560,11 @@ impl<'s> Runtime<'s> {
                     }
                     "textstyle" => button.text_style = v.as_text(),
                     "textalign" => button.text_align = v.as_text(),
+                    "weight" => {
+                        if let Some(n) = v.as_number() {
+                            button.weight = n as f32;
+                        }
+                    }
                     _ => {
                         if !geom_set(&prop, &mut button.rect, &v) {
                             return Err(format!("unknown button property '{prop}'"));

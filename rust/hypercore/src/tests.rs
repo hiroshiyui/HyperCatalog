@@ -160,6 +160,116 @@ fn view_tree_omits_geometry() {
     }
 }
 
+// --- ADR-0014 layout overlay: group containers, weight ---
+
+/// A one-card stack with a layout overlay: a root column of [ row[field 10, button 20], field 11 ].
+fn layout_yaml() -> String {
+    r#"
+name: LTest
+width: 100
+height: 100
+cards:
+  - id: 1
+    name: One
+    fields:
+      - { id: 10, name: a, rect: { x: 0, y: 0, w: 10, h: 10 }, text: "A", weight: 2 }
+      - { id: 11, name: b, rect: { x: 0, y: 0, w: 10, h: 10 }, text: "B" }
+    buttons:
+      - { id: 20, name: go, rect: { x: 0, y: 0, w: 10, h: 10 }, title: "Go", weight: 1 }
+    layout:
+      mode: column
+      padding: 8
+      children:
+        - { mode: row, padding: 4, children: [10, 20] }
+        - 11
+"#
+    .to_string()
+}
+
+#[test]
+fn view_tree_groups_nest() {
+    let s = Session::load_from_yaml(&layout_yaml()).unwrap();
+    let t = s.render_view_tree();
+    // Root is a column with padding; its children are the row-group then field 11.
+    assert_eq!(t.layout, "column");
+    assert_eq!(t.padding, 8.0);
+    // Group ids are synthetic, above the max object id (20) → 21.
+    assert_eq!(t.root_ids, vec![21, 11]);
+
+    let group = t.nodes.iter().find(|n| n.id == 21).unwrap();
+    assert_eq!(group.kind, "group");
+    assert_eq!(prop(group, "mode"), "row");
+    assert_eq!(prop(group, "padding"), "4");
+    assert_eq!(group.child_ids, vec![10, 20]);
+
+    // Objects carry a weight prop projected from the model.
+    let f10 = t.nodes.iter().find(|n| n.id == 10).unwrap();
+    assert_eq!(f10.kind, "field");
+    assert_eq!(prop(f10, "weight"), "2");
+    let b20 = t.nodes.iter().find(|n| n.id == 20).unwrap();
+    assert_eq!(prop(b20, "weight"), "1");
+}
+
+#[test]
+fn view_tree_no_layout_is_flat() {
+    // A card without a layout overlay falls back to a flat column (slice-1 behavior, unchanged).
+    let s = Session::load_from_json(&sample_json()).unwrap();
+    let t = s.render_view_tree();
+    assert_eq!(t.layout, "column");
+    assert_eq!(t.padding, 0.0);
+    assert_eq!(t.root_ids, vec![10, 11, 20, 21]);
+    assert!(t.nodes.iter().all(|n| n.kind != "group"));
+}
+
+#[test]
+fn view_tree_skips_dangling_layout_ref() {
+    // A group referencing a non-existent object id silently omits it (ADR-0014 caveat).
+    let yaml = r#"
+name: D
+cards:
+  - id: 1
+    name: One
+    fields:
+      - { id: 10, name: a, rect: { x: 0, y: 0, w: 10, h: 10 } }
+    layout:
+      mode: row
+      children: [10, 999]
+"#;
+    let s = Session::load_from_yaml(yaml).unwrap();
+    let t = s.render_view_tree();
+    assert_eq!(t.root_ids, vec![10]); // 999 dropped, not present
+    assert!(t.nodes.iter().all(|n| n.id != 999));
+}
+
+#[test]
+fn weight_get_set_via_script() {
+    // `the weight of` is scriptable like other object properties (dialect: set the weight of field).
+    let mut s = Session::load_from_json(&sample_json()).unwrap();
+    let script = "on mouseUp\n  set the weight of field \"input\" to 2\n  \
+                  put the weight of field \"input\" into field \"counter\"\nend mouseUp";
+    s.set_object_script(11, script);
+    let r = s.dispatch_by_id(11, "mouseUp", &[]); // field "input" is id 11
+    assert!(r.error.is_none(), "error: {:?}", r.error);
+    let counter = s
+        .render_current_card()
+        .items
+        .into_iter()
+        .find(|d| d.id == 10)
+        .unwrap();
+    assert_eq!(counter.text, "2");
+}
+
+#[test]
+fn layout_group_yaml_round_trips() {
+    // The externally-tagged LayoutChild enum round-trips through yaml_serde unchanged.
+    let stack: crate::model::Stack = yaml_serde::from_str(&layout_yaml()).unwrap();
+    let reser = yaml_serde::to_string(&stack).unwrap();
+    let again: crate::model::Stack = yaml_serde::from_str(&reser).unwrap();
+    assert_eq!(stack, again);
+    // And the overlay actually parsed (not silently dropped).
+    assert!(stack.cards[0].layout.is_some());
+}
+
 #[test]
 fn go_next_card_navigates() {
     let mut s = Session::load_from_json(&sample_json()).unwrap();

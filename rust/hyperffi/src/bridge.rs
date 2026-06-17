@@ -116,6 +116,9 @@ pub struct ViewTree {
     pub card_name: String,
     pub card_index: i32,
     pub card_count: i32,
+    /// Root container arrangement ("column"/"row") + padding (ADR-0014).
+    pub layout: String,
+    pub padding: f32,
     pub root_ids: Vec<i32>,
     pub nodes: Vec<ViewNode>,
 }
@@ -147,6 +150,8 @@ impl From<hypercore::ViewTree> for ViewTree {
             card_name: t.card_name,
             card_index: t.card_index as i32,
             card_count: t.card_count as i32,
+            layout: t.layout,
+            padding: t.padding,
             root_ids: t.root_ids.into_iter().map(|i| i as i32).collect(),
             nodes: t.nodes.into_iter().map(ViewNode::from).collect(),
         }

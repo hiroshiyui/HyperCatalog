@@ -173,11 +173,13 @@ fn dump(session: &Session) {
 fn tree(session: &Session) {
     let t = session.render_view_tree();
     println!(
-        "── {} · card {}/{} \"{}\" (view tree) ──",
+        "── {} · card {}/{} \"{}\" (view tree · {} pad {}) ──",
         t.stack_name,
         t.card_index + 1,
         t.card_count,
-        t.card_name
+        t.card_name,
+        t.layout,
+        t.padding,
     );
     for id in &t.root_ids {
         if let Some(n) = t.nodes.iter().find(|n| n.id == *id) {

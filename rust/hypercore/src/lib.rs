@@ -6,6 +6,7 @@ pub mod model;
 pub mod script;
 pub mod session;
 
+pub use model::{LayoutChild, LayoutGroup};
 pub use session::{
     DispatchResult, DrawCmd, HostEffect, ObjectProps, Prop, RenderList, Session, ViewNode, ViewTree,
 };
