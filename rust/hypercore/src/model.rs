@@ -197,6 +197,20 @@ pub struct Stack {
     /// Seed color (hex, e.g. `#6750A4`) for the Material color scheme (ADR-0018); `""` = default.
     #[serde(default)]
     pub accent_color: String,
+    /// Safe-area insets (dp) the host pushes in each layout pass (ADR-0020); **session state**, not
+    /// document content (`#[serde(skip)]`), readable from scripts as `the safeTop of this card` etc.
+    #[serde(skip)]
+    pub safe_insets: SafeInsets,
+}
+
+/// Safe-area insets in dp (status bar, navigation bar, display cutout), set by the host each layout
+/// pass (ADR-0020). Exposed to scripts so layouts can avoid system UI; never serialized.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct SafeInsets {
+    pub top: f32,
+    pub right: f32,
+    pub bottom: f32,
+    pub left: f32,
 }
 
 impl Stack {

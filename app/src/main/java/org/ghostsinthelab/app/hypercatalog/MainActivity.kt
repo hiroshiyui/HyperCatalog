@@ -182,8 +182,13 @@ class MainActivity : AppCompatActivity(), CardView.Callbacks {
 
         setContentView(root)
         ViewCompat.setOnApplyWindowInsetsListener(root) { v, insets ->
-            val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
+            val bars = insets.getInsets(
+                WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout(),
+            )
             v.setPadding(bars.left, bars.top, bars.right, bars.bottom)
+            // Expose safe-area insets (dp) to scripts (ADR-0020): `the safeTop of this card`, etc.
+            val d = resources.displayMetrics.density
+            stack?.setInsets(bars.top / d, bars.right / d, bars.bottom / d, bars.left / d)
             insets
         }
 

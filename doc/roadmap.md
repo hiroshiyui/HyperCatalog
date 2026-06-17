@@ -80,12 +80,16 @@ decisions rather than describing shipped behavior. Full vision in
 [`doc/design/android-hypertalk-dialect.md`](design/android-hypertalk-dialect.md).
 
 **Started:** ADR-0008 has shipped — the core emits a semantic `ViewTree` consumed by a **Jetpack
-Compose Material 3** renderer (`NativeCardScreen`) beside the classic Canvas player. *Slice 1* (the
-button/field set), *slice 2* (nested **layout** groups — [ADR-0014](adr/0014-layout-model-group-containers.md):
-`row`/`column` containers + per-object `weight`, so native mode reflows into a grid), and *slice 3*
-(the **`switch`** kind — [ADR-0015](adr/0015-switch-object-kind.md): a button with `checked`,
-rendered as a Material `Switch`) are done. In progress: the rest of the layout model
-(`grid`/`free`/`constraints`/insets), Material roles/`textRole`/theme, and lifecycle messages.
+Compose Material 3** renderer (`NativeCardScreen`) beside the classic Canvas player. Most of the dialect has now shipped as a sequence of additive slices on the native render target:
+button/field (slice 1), nested **layout** groups + `weight` ([ADR-0014](adr/0014-layout-model-group-containers.md)),
+the **`switch`** kind ([ADR-0015](adr/0015-switch-object-kind.md)), **`grid`** mode + card-level
+layout scripting ([ADR-0016](adr/0016-grid-layout-and-card-layout-scripting.md)), **`free`**/absolute
+mode ([ADR-0017](adr/0017-free-absolute-layout-mode.md)), **Material roles/`textRole`/theme +
+dynamic color** ([ADR-0018](adr/0018-material-roles-and-theme.md)), **lifecycle messages**
+(`resume`/`suspend`/`backPressed`/`rotate` — [ADR-0019](adr/0019-lifecycle-messages.md)), and
+**safe-area insets** ([ADR-0020](adr/0020-safe-area-insets-and-constraints.md)). Still deferred: the
+`constraints`/anchor solver, `on rotate w,h` args, more object kinds (slider/chip/image/…), and a
+full seed→tonal-palette for non-dynamic theming.
 
 ## Non-goals (for now)
 
@@ -113,3 +117,4 @@ Rust-native — see [ADR-0001](adr/0001-rust-native-hypertalk.md).
 - [ADR-0017 — `free` (absolute) layout mode](adr/0017-free-absolute-layout-mode.md)
 - [ADR-0018 — Material roles, `textRole`, theme/dynamic color](adr/0018-material-roles-and-theme.md)
 - [ADR-0019 — Activity-lifecycle messages](adr/0019-lifecycle-messages.md)
+- [ADR-0020 — Safe-area insets (constraint solver deferred)](adr/0020-safe-area-insets-and-constraints.md)

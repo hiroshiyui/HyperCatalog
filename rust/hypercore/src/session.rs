@@ -206,6 +206,17 @@ impl Session {
         yaml_serde::to_string(&self.stack).unwrap_or_else(|_| "{}".to_string())
     }
 
+    /// Push the host's current safe-area insets (dp) into the session (ADR-0020), so scripts can
+    /// read `the safeTop/safeRight/safeBottom/safeLeft of this card`. Session state, not persisted.
+    pub fn set_insets(&mut self, top: f32, right: f32, bottom: f32, left: f32) {
+        self.stack.safe_insets = crate::model::SafeInsets {
+            top,
+            right,
+            bottom,
+            left,
+        };
+    }
+
     pub fn card_index(&self) -> usize {
         self.card_index
     }

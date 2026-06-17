@@ -502,6 +502,10 @@ impl<'s> Runtime<'s> {
                     "padding" => {
                         Value::Number(card.layout.as_ref().map(|l| l.padding).unwrap_or(0.0) as f64)
                     }
+                    "safetop" => Value::Number(self.stack.safe_insets.top as f64),
+                    "saferight" => Value::Number(self.stack.safe_insets.right as f64),
+                    "safebottom" => Value::Number(self.stack.safe_insets.bottom as f64),
+                    "safeleft" => Value::Number(self.stack.safe_insets.left as f64),
                     _ => Value::Empty,
                 })
             }
@@ -510,6 +514,10 @@ impl<'s> Runtime<'s> {
                 "number" => Value::Number(self.stack.cards.len() as f64),
                 "theme" => Value::from_text(self.stack.theme.clone()),
                 "accentcolor" => Value::from_text(self.stack.accent_color.clone()),
+                "safetop" => Value::Number(self.stack.safe_insets.top as f64),
+                "saferight" => Value::Number(self.stack.safe_insets.right as f64),
+                "safebottom" => Value::Number(self.stack.safe_insets.bottom as f64),
+                "safeleft" => Value::Number(self.stack.safe_insets.left as f64),
                 _ => Value::Empty,
             }),
         }

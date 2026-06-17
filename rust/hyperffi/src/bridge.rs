@@ -343,6 +343,15 @@ impl HyperStack {
             .into()
     }
 
+    /// Push the host's safe-area insets in dp (ADR-0020) so scripts can read
+    /// `the safeTop/safeRight/safeBottom/safeLeft of this card`. Called each layout pass.
+    pub fn set_insets(&self, top: f32, right: f32, bottom: f32, left: f32) {
+        self.inner
+            .lock()
+            .unwrap()
+            .set_insets(top, right, bottom, left);
+    }
+
     /// Fire the current card's `openCard` handler (run after navigation).
     pub fn open_card(&self) -> DispatchResult {
         self.inner.lock().unwrap().open_current_card().into()

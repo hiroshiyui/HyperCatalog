@@ -355,6 +355,20 @@ fn the_layout_of_card_getter() {
     assert_eq!(field_text(&s, 11), "column"); // field "b" is id 11
 }
 
+// --- ADR-0020 safe-area insets ---
+
+#[test]
+fn safe_insets_readable_from_script() {
+    let mut s = Session::load_from_json(&sample_json()).unwrap();
+    s.set_insets(24.0, 8.0, 48.0, 8.0);
+    s.set_object_script(
+        20,
+        "on mouseUp\n  put the safeBottom of this card into field \"counter\"\nend mouseUp",
+    );
+    s.dispatch_by_id(20, "mouseUp", &[]);
+    assert_eq!(field_text(&s, 10), "48"); // field "counter" is id 10
+}
+
 // --- ADR-0019 lifecycle messages ---
 
 #[test]
