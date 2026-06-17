@@ -22,9 +22,9 @@ architecture are recorded as ADRs under [`doc/adr/`](adr/).
   dispatch, gestures, authoring) — no hand-written JNI, no JSON on the wire. See
   [ADR-0012](adr/0012-uniffi-bridge.md) (supersedes the original JSON-over-JNI bridge,
   [ADR-0002](adr/0002-json-string-jni-bridge.md)).
-- **Sample content.** `assets/sample.json` (demo), `assets/productivity.json` (To-Do,
-  Counters, Tip Split, Calculator, Temperature, Length — the default stack), and
-  `assets/gestures.json` (a 3-card swipe/long-press/double-tap demo for the touch gestures).
+- **Sample content** (YAML, ADR-0011). `assets/sample.yaml` (demo), `assets/productivity.yaml`
+  (To-Do, Counters, Tip Split, Calculator, Temperature, Length — the default stack), and
+  `assets/gestures.yaml` (a 3-card swipe/long-press/double-tap demo for the touch gestures).
 
 ## Direction
 

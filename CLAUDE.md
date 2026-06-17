@@ -23,7 +23,7 @@ Android (Kotlin host, thin)                    rust/ workspace
 ```
 
 - **`rust/hypercore`** is the heart and has **no Android dependencies**. Sub-structure:
-  - `model.rs` — `Stack → Card/Background → Button/Field` (serde, JSON-persistable).
+  - `model.rs` — `Stack → Card/Background → Button/Field` (serde; persisted as YAML, legacy JSON).
   - `script/` — `lexer` → `parser` → `ast` → `interp` (the `Runtime` that executes handlers
     against a `&mut Stack`), plus `value` (HyperTalk's string-centric `Value`).
   - `session.rs` — the **only** surface hosts call (the platform-agnostic facade): `load_from_json`

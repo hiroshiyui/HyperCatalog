@@ -1,6 +1,6 @@
 //! The HyperCard-like document model: a Stack of Cards, each holding Buttons and
 //! Fields, layered over shared Backgrounds. Everything is plain data with serde so it
-//! round-trips to JSON for persistence.
+//! round-trips to YAML for persistence (ADR-0011; legacy JSON still loads).
 
 use serde::{Deserialize, Serialize};
 
