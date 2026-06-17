@@ -51,6 +51,29 @@ pub struct DrawCmd {
     pub text_align: String,
 }
 
+/// An object's editable properties for the host inspector — the union of the button and field
+/// shapes (button-only fields blank for a field, and vice versa). The typed replacement for the
+/// JSON props blob; geometry is read-only here (set it with `set_object_rect`).
+#[derive(Debug, Clone, PartialEq)]
+pub struct ObjectProps {
+    pub id: u32,
+    /// "button" or "field".
+    pub kind: String,
+    pub name: String,
+    pub title: String,
+    pub style: String,
+    pub text: String,
+    pub locked: bool,
+    pub x: f32,
+    pub y: f32,
+    pub w: f32,
+    pub h: f32,
+    pub text_font: String,
+    pub text_size: f32,
+    pub text_style: String,
+    pub text_align: String,
+}
+
 /// A host effect to perform after a dispatch (dialog, beep, message-box output).
 #[derive(Debug, Serialize, PartialEq)]
 #[serde(tag = "type", content = "text", rename_all = "lowercase")]
@@ -451,6 +474,80 @@ impl Session {
         false
     }
 
+    /// Read an object's editable properties as a typed [`ObjectProps`] (the typed replacement for
+    /// the JSON `get_object_props`).
+    pub fn object_props(&self, id: u32) -> Option<ObjectProps> {
+        if let Some(b) = self.find_button(id) {
+            return Some(ObjectProps {
+                id: b.id,
+                kind: "button".to_string(),
+                name: b.name.clone(),
+                title: b.title.clone(),
+                style: format!("{:?}", b.style).to_lowercase(),
+                text: String::new(),
+                locked: false,
+                x: b.rect.x,
+                y: b.rect.y,
+                w: b.rect.w,
+                h: b.rect.h,
+                text_font: b.text_font.clone(),
+                text_size: b.text_size,
+                text_style: b.text_style.clone(),
+                text_align: b.text_align.clone(),
+            });
+        }
+        if let Some(f) = self.find_field(id) {
+            return Some(ObjectProps {
+                id: f.id,
+                kind: "field".to_string(),
+                name: f.name.clone(),
+                title: String::new(),
+                style: String::new(),
+                text: f.text.clone(),
+                locked: f.locked,
+                x: f.rect.x,
+                y: f.rect.y,
+                w: f.rect.w,
+                h: f.rect.h,
+                text_font: f.text_font.clone(),
+                text_size: f.text_size,
+                text_style: f.text_style.clone(),
+                text_align: f.text_align.clone(),
+            });
+        }
+        None
+    }
+
+    /// Apply a typed [`ObjectProps`] to its object (typed replacement for the JSON
+    /// `set_object_props`). Geometry is ignored here — use `set_object_rect`.
+    pub fn apply_object_props(&mut self, p: &ObjectProps) -> bool {
+        let bg_id = {
+            let card = &mut self.stack.cards[self.card_index];
+            if let Some(b) = card.buttons.iter_mut().find(|b| b.id == p.id) {
+                apply_button(b, p);
+                return true;
+            }
+            if let Some(f) = card.fields.iter_mut().find(|f| f.id == p.id) {
+                apply_field(f, p);
+                return true;
+            }
+            card.background_id
+        };
+        if let Some(bg_id) = bg_id
+            && let Some(bg) = self.stack.backgrounds.iter_mut().find(|b| b.id == bg_id)
+        {
+            if let Some(b) = bg.buttons.iter_mut().find(|b| b.id == p.id) {
+                apply_button(b, p);
+                return true;
+            }
+            if let Some(f) = bg.fields.iter_mut().find(|f| f.id == p.id) {
+                apply_field(f, p);
+                return true;
+            }
+        }
+        false
+    }
+
     fn find_button(&self, id: u32) -> Option<&Button> {
         let card = &self.stack.cards[self.card_index];
         card.buttons.iter().find(|b| b.id == id).or_else(|| {
@@ -678,6 +775,28 @@ enum Hit {
     Button(u32),
     EditableField(u32),
     LockedField(u32),
+}
+
+/// Apply a typed [`ObjectProps`] to a button (name/title/style + text styling; not geometry).
+fn apply_button(b: &mut Button, p: &ObjectProps) {
+    b.name = p.name.clone();
+    b.title = p.title.clone();
+    b.style = parse_style(&p.style);
+    b.text_font = p.text_font.clone();
+    b.text_size = p.text_size;
+    b.text_style = p.text_style.clone();
+    b.text_align = p.text_align.clone();
+}
+
+/// Apply a typed [`ObjectProps`] to a field (name/text/locked + text styling; not geometry).
+fn apply_field(f: &mut Field, p: &ObjectProps) {
+    f.name = p.name.clone();
+    f.text = p.text.clone();
+    f.locked = p.locked;
+    f.text_font = p.text_font.clone();
+    f.text_size = p.text_size;
+    f.text_style = p.text_style.clone();
+    f.text_align = p.text_align.clone();
 }
 
 fn apply_button_props(b: &mut Button, v: &serde_json::Value) {

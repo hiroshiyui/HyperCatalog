@@ -93,8 +93,9 @@ reinstalling — Gradle won't see Rust source changes unless `cargoNdkBuild` rer
 - **UniFFI bridge** (ADR-0012): the host↔core boundary is a generated typed `HyperStack` (no JSON,
   no `org.json` for render/dispatch). The generated Kotlin uses **JNA** at runtime (`jna:5.15@aar`),
   and `uniffiBindgen` reads metadata from a **host** (unstripped) build because the Android release
-  `.so` is stripped. `org.json` survives only for the authoring **props blob** (`object_props` /
-  `set_object_props`).
+  `.so` is stripped. The whole surface is typed (incl. object props as an `ObjectProps` record);
+  `org.json` survives only in the host's `stackDisplayName`, to read a *legacy JSON* stack file's
+  `name` for the picker (YAML uses a regex) — not the bridge.
 - **compileSdk is 37** (androidx.core 1.19.0 requires it); NDK `29.0.14206865`; ABIs limited to
   arm64-v8a + x86_64. The NDK revision is the `rustNdkVersion` constant in `app/build.gradle.kts`,
   shared with AGP and cargo-ndk.

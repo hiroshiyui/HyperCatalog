@@ -427,10 +427,8 @@ class MainActivity : AppCompatActivity(), CardView.Callbacks {
 
     private fun showInspector(objectId: Int) {
         val s = stack ?: return
-        val json = s.objectProps(objectId) // still a JSON blob (the inspector's props shape)
-        if (json.isEmpty()) return
-        val props = JSONObject(json)
-        val kind = props.optString("kind")
+        val props = s.objectProps(objectId) ?: return // typed ObjectProps (ADR-0012)
+        val kind = props.kind
 
         val container = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -445,7 +443,7 @@ class MainActivity : AppCompatActivity(), CardView.Callbacks {
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
         }
 
-        val nameInput = textField(props.optString("name"))
+        val nameInput = textField(props.name)
         container.addView(label("Name"))
         container.addView(nameInput)
 
@@ -455,7 +453,7 @@ class MainActivity : AppCompatActivity(), CardView.Callbacks {
         var lockedCheck: CheckBox? = null
 
         if (kind == "button") {
-            titleInput = textField(props.optString("title"))
+            titleInput = textField(props.title)
             container.addView(label("Title"))
             container.addView(titleInput)
 
@@ -466,26 +464,26 @@ class MainActivity : AppCompatActivity(), CardView.Callbacks {
                     android.R.layout.simple_spinner_dropdown_item,
                     styles,
                 )
-                setSelection(styles.indexOf(props.optString("style")).coerceAtLeast(0))
+                setSelection(styles.indexOf(props.style).coerceAtLeast(0))
             }
             container.addView(label("Style"))
             container.addView(styleSpinner)
         } else {
-            textInput = textField(props.optString("text"))
+            textInput = textField(props.text)
             container.addView(label("Text"))
             container.addView(textInput)
 
             lockedCheck = CheckBox(this).apply {
                 text = "Locked"
-                isChecked = props.optBoolean("locked")
+                isChecked = props.locked
             }
             container.addView(lockedCheck)
         }
 
         // --- text styling (applies to both buttons and fields) ---
-        val sizeNow = props.optDouble("text_size", 16.0)
+        val sizeNow = props.textSize
         val sizeInput = textField(
-            if (sizeNow == sizeNow.toLong().toDouble()) sizeNow.toLong().toString() else sizeNow.toString(),
+            if (sizeNow == sizeNow.toLong().toFloat()) sizeNow.toLong().toString() else sizeNow.toString(),
         ).apply { inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL }
         container.addView(label("Text size"))
         container.addView(sizeInput)
@@ -495,7 +493,7 @@ class MainActivity : AppCompatActivity(), CardView.Callbacks {
             adapter = ArrayAdapter(
                 this@MainActivity, android.R.layout.simple_spinner_dropdown_item, fonts,
             )
-            val cur = props.optString("text_font").ifEmpty { "default" }
+            val cur = props.textFont.ifEmpty { "default" }
             setSelection(fonts.indexOf(cur).coerceAtLeast(0))
         }
         container.addView(label("Font"))
@@ -506,13 +504,13 @@ class MainActivity : AppCompatActivity(), CardView.Callbacks {
             adapter = ArrayAdapter(
                 this@MainActivity, android.R.layout.simple_spinner_dropdown_item, aligns,
             )
-            val cur = props.optString("text_align").ifEmpty { "left" }
+            val cur = props.textAlign.ifEmpty { "left" }
             setSelection(aligns.indexOf(cur).coerceAtLeast(0))
         }
         container.addView(label("Align"))
         container.addView(alignSpinner)
 
-        val styleNow = props.optString("text_style").lowercase()
+        val styleNow = props.textStyle.lowercase()
         val boldCheck = CheckBox(this).apply { text = "Bold"; isChecked = "bold" in styleNow }
         val italicCheck = CheckBox(this).apply { text = "Italic"; isChecked = "italic" in styleNow }
         val underlineCheck =
@@ -525,29 +523,24 @@ class MainActivity : AppCompatActivity(), CardView.Callbacks {
             .setTitle("Properties · object #$objectId")
             .setView(ScrollView(this).apply { addView(container) })
             .setPositiveButton("Save") { _, _ ->
-                val out = JSONObject().put("name", nameInput.text.toString())
-                if (kind == "button") {
-                    out.put("title", titleInput!!.text.toString())
-                    out.put("style", styleSpinner!!.selectedItem as String)
-                } else {
-                    out.put("text", textInput!!.text.toString())
-                    out.put("locked", lockedCheck!!.isChecked)
-                }
-                out.put("text_size", sizeInput.text.toString().toDoubleOrNull() ?: 16.0)
-                out.put(
-                    "text_font",
-                    (fontSpinner.selectedItem as String).let { if (it == "default") "" else it },
-                )
-                out.put("text_align", alignSpinner.selectedItem as String)
-                out.put(
-                    "text_style",
-                    buildList {
+                // Rebuild the typed record: edited fields from the inputs, everything else
+                // (geometry, the other kind's fields) passed through unchanged from `props`.
+                val out = props.copy(
+                    name = nameInput.text.toString(),
+                    title = titleInput?.text?.toString() ?: props.title,
+                    style = (styleSpinner?.selectedItem as? String) ?: props.style,
+                    text = textInput?.text?.toString() ?: props.text,
+                    locked = lockedCheck?.isChecked ?: props.locked,
+                    textSize = sizeInput.text.toString().toFloatOrNull() ?: 16f,
+                    textFont = (fontSpinner.selectedItem as String).let { if (it == "default") "" else it },
+                    textAlign = alignSpinner.selectedItem as String,
+                    textStyle = buildList {
                         if (boldCheck.isChecked) add("bold")
                         if (italicCheck.isChecked) add("italic")
                         if (underlineCheck.isChecked) add("underline")
                     }.joinToString(","),
                 )
-                stack?.setObjectProps(objectId, out.toString())
+                stack?.setObjectProps(out)
                 cardView.refresh()
             }
             .setNegativeButton(android.R.string.cancel, null)

@@ -1,7 +1,7 @@
 //! Unit tests for the parser, interpreter, and session facade.
 
 use crate::script::parse_script;
-use crate::session::{HostEffect, Session};
+use crate::session::{HostEffect, ObjectProps, Session};
 
 /// A minimal two-card stack used across tests.
 fn sample_json() -> String {
@@ -1011,6 +1011,36 @@ fn yaml_and_json_round_trip_to_the_same_model() {
 #[test]
 fn invalid_yaml_errors_cleanly() {
     assert!(Session::load_from_yaml("name: [unterminated").is_err());
+}
+
+#[test]
+fn typed_object_props_read_and_apply() {
+    // The typed props path (ADR-0012) used by the UniFFI bridge — no JSON.
+    let mut s = Session::load_from_json(&sample_json()).unwrap();
+    let mut p = s.object_props(20).unwrap(); // "Inc" button
+    assert_eq!(p.kind, "button");
+    assert_eq!(p.name, "Inc");
+    p.title = "Plus".to_string();
+    p.style = "rectangle".to_string();
+    p.text_size = 22.0;
+    assert!(s.apply_object_props(&p));
+    let p2 = s.object_props(20).unwrap();
+    assert_eq!(p2.title, "Plus");
+    assert_eq!(p2.style, "rectangle");
+    assert_eq!(p2.text_size, 22.0);
+
+    // A field reports text/locked; applying flips locked and sets text.
+    let mut f = s.object_props(11).unwrap();
+    assert_eq!(f.kind, "field");
+    f.locked = true;
+    f.text = "hi".to_string();
+    assert!(s.apply_object_props(&f));
+    let f2 = s.object_props(11).unwrap();
+    assert!(f2.locked);
+    assert_eq!(f2.text, "hi");
+
+    assert!(s.object_props(999).is_none());
+    assert!(!s.apply_object_props(&ObjectProps { id: 999, ..p2 }));
 }
 
 #[test]

@@ -136,6 +136,70 @@ impl From<hypercore::DispatchResult> for DispatchResult {
     }
 }
 
+/// An object's editable properties for the inspector — mirrors `hypercore::ObjectProps`.
+#[derive(uniffi::Record)]
+pub struct ObjectProps {
+    pub id: i32,
+    pub kind: String,
+    pub name: String,
+    pub title: String,
+    pub style: String,
+    pub text: String,
+    pub locked: bool,
+    pub x: f32,
+    pub y: f32,
+    pub w: f32,
+    pub h: f32,
+    pub text_font: String,
+    pub text_size: f32,
+    pub text_style: String,
+    pub text_align: String,
+}
+
+impl From<hypercore::ObjectProps> for ObjectProps {
+    fn from(p: hypercore::ObjectProps) -> Self {
+        ObjectProps {
+            id: p.id as i32,
+            kind: p.kind,
+            name: p.name,
+            title: p.title,
+            style: p.style,
+            text: p.text,
+            locked: p.locked,
+            x: p.x,
+            y: p.y,
+            w: p.w,
+            h: p.h,
+            text_font: p.text_font,
+            text_size: p.text_size,
+            text_style: p.text_style,
+            text_align: p.text_align,
+        }
+    }
+}
+
+impl From<ObjectProps> for hypercore::ObjectProps {
+    fn from(p: ObjectProps) -> Self {
+        hypercore::ObjectProps {
+            id: p.id as u32,
+            kind: p.kind,
+            name: p.name,
+            title: p.title,
+            style: p.style,
+            text: p.text,
+            locked: p.locked,
+            x: p.x,
+            y: p.y,
+            w: p.w,
+            h: p.h,
+            text_font: p.text_font,
+            text_size: p.text_size,
+            text_style: p.text_style,
+            text_align: p.text_align,
+        }
+    }
+}
+
 /// Validate HyperTalk source without running it; returns the parser error, or "" if it parses.
 #[uniffi::export]
 pub fn check_script(src: String) -> String {
@@ -250,22 +314,18 @@ impl HyperStack {
             .set_object_rect(object_id as u32, x, y, w, h)
     }
 
-    /// Read an object's editable properties as a JSON blob ("" if it doesn't exist). Still JSON
-    /// pending a typed props record.
-    pub fn object_props(&self, object_id: i32) -> String {
+    /// Read an object's editable properties as a typed record, or null if it doesn't exist.
+    pub fn object_props(&self, object_id: i32) -> Option<ObjectProps> {
         self.inner
             .lock()
             .unwrap()
-            .get_object_props(object_id as u32)
-            .unwrap_or_default()
+            .object_props(object_id as u32)
+            .map(ObjectProps::from)
     }
 
-    /// Apply a JSON property blob to an object; true if the object was found.
-    pub fn set_object_props(&self, object_id: i32, props_json: String) -> bool {
-        self.inner
-            .lock()
-            .unwrap()
-            .set_object_props(object_id as u32, &props_json)
+    /// Apply a typed property record to its object; true if the object was found.
+    pub fn set_object_props(&self, props: ObjectProps) -> bool {
+        self.inner.lock().unwrap().apply_object_props(&props.into())
     }
 
     /// Serialize the current stack to YAML (for saving the per-stack working copy).
