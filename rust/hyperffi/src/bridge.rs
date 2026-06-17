@@ -1,6 +1,9 @@
-//! Typed UniFFI bridge (ADR-0012, stage 2). A [`HyperStack`] wraps a `hypercore::Session` and
-//! exposes the **read path** with typed records, replacing the JSON-string JNI surface. Dispatch
-//! and authoring move over in later stages; until then they stay on the hand-written JNI bridge.
+//! Typed UniFFI bridge (ADR-0012). A [`HyperStack`] wraps a `hypercore::Session` and exposes the
+//! whole host surface as typed calls, replacing the hand-written JSON-string JNI bridge. Object
+//! props are still passed as a JSON string (the inspector blob) pending their own typed shape.
+//!
+//! Ids cross as `i32` (not `u32`) so the generated Kotlin uses `Int`, matching the host; `-1`
+//! means "none".
 
 use std::sync::{Arc, Mutex};
 
@@ -27,7 +30,7 @@ impl std::error::Error for BridgeError {}
 #[derive(uniffi::Record)]
 pub struct DrawItem {
     pub kind: String,
-    pub id: u32,
+    pub id: i32,
     pub x: f32,
     pub y: f32,
     pub w: f32,
@@ -42,14 +45,13 @@ pub struct DrawItem {
     pub text_align: String,
 }
 
-/// The draw list for the current card — mirrors `hypercore::RenderList`. (`card_index`/`count`
-/// narrow `usize` → `u32`, which UniFFI supports.)
+/// The draw list for the current card — mirrors `hypercore::RenderList`.
 #[derive(uniffi::Record)]
 pub struct RenderList {
     pub stack_name: String,
     pub card_name: String,
-    pub card_index: u32,
-    pub card_count: u32,
+    pub card_index: i32,
+    pub card_count: i32,
     pub width: f32,
     pub height: f32,
     pub items: Vec<DrawItem>,
@@ -59,7 +61,7 @@ impl From<hypercore::DrawCmd> for DrawItem {
     fn from(d: hypercore::DrawCmd) -> Self {
         DrawItem {
             kind: d.kind,
-            id: d.id,
+            id: d.id as i32,
             x: d.x,
             y: d.y,
             w: d.w,
@@ -81,8 +83,8 @@ impl From<hypercore::RenderList> for RenderList {
         RenderList {
             stack_name: r.stack_name,
             card_name: r.card_name,
-            card_index: r.card_index as u32,
-            card_count: r.card_count as u32,
+            card_index: r.card_index as i32,
+            card_count: r.card_count as i32,
             width: r.width,
             height: r.height,
             items: r.items.into_iter().map(DrawItem::from).collect(),
@@ -112,13 +114,12 @@ impl From<hypercore::HostEffect> for HostEffect {
     }
 }
 
-/// Result of a dispatch (tap/gesture/openCard) — the typed replacement for the JSON
-/// `DispatchResult`. Mirrors `hypercore::DispatchResult`.
+/// Result of a dispatch (tap/gesture/openCard) — mirrors `hypercore::DispatchResult`.
 #[derive(uniffi::Record)]
 pub struct DispatchResult {
     pub needs_redraw: bool,
     pub card_changed: bool,
-    pub focus_field: Option<u32>,
+    pub focus_field: Option<i32>,
     pub host_cmds: Vec<HostEffect>,
     pub error: Option<String>,
 }
@@ -128,11 +129,17 @@ impl From<hypercore::DispatchResult> for DispatchResult {
         DispatchResult {
             needs_redraw: r.needs_redraw,
             card_changed: r.card_changed,
-            focus_field: r.focus_field,
+            focus_field: r.focus_field.map(|id| id as i32),
             host_cmds: r.host_cmds.into_iter().map(HostEffect::from).collect(),
             error: r.error,
         }
     }
+}
+
+/// Validate HyperTalk source without running it; returns the parser error, or "" if it parses.
+#[uniffi::export]
+pub fn check_script(src: String) -> String {
+    Session::check_script(&src).unwrap_or_default()
 }
 
 /// A loaded stack the host drives. Wraps `Session` behind a `Mutex` — UniFFI shares objects as
@@ -148,21 +155,13 @@ impl HyperStack {
     /// Load a stack from YAML (the authoring format, ADR-0011).
     #[uniffi::constructor]
     pub fn load_yaml(yaml: String) -> Result<Arc<HyperStack>, BridgeError> {
-        let session = Session::load_from_yaml(&yaml)
-            .map_err(|message| BridgeError::Load { reason: message })?;
-        Ok(Arc::new(HyperStack {
-            inner: Mutex::new(session),
-        }))
+        Self::wrap(Session::load_from_yaml(&yaml))
     }
 
     /// Load a stack from JSON (legacy/compat).
     #[uniffi::constructor]
     pub fn load_json(json: String) -> Result<Arc<HyperStack>, BridgeError> {
-        let session = Session::load_from_json(&json)
-            .map_err(|message| BridgeError::Load { reason: message })?;
-        Ok(Arc::new(HyperStack {
-            inner: Mutex::new(session),
-        }))
+        Self::wrap(Session::load_from_json(&json))
     }
 
     /// The draw list for the current card — the typed replacement for `nativeRender`'s JSON.
@@ -191,5 +190,95 @@ impl HyperStack {
             .unwrap()
             .dispatch_gesture(x, y, &gesture)
             .into()
+    }
+
+    /// Set a field's text by id (host-edited); true if a field changed.
+    pub fn set_field_text(&self, field_id: i32, text: String) -> bool {
+        self.inner
+            .lock()
+            .unwrap()
+            .set_field_text(field_id as u32, &text)
+    }
+
+    /// Topmost object id at a card-space point (edit-mode selection), or -1.
+    pub fn object_at(&self, x: f32, y: f32) -> i32 {
+        self.inner
+            .lock()
+            .unwrap()
+            .object_at(x, y)
+            .map(|id| id as i32)
+            .unwrap_or(-1)
+    }
+
+    /// Read an object's HyperTalk source by id ("" if it doesn't exist).
+    pub fn object_script(&self, object_id: i32) -> String {
+        self.inner
+            .lock()
+            .unwrap()
+            .get_object_script(object_id as u32)
+            .unwrap_or_default()
+    }
+
+    /// Write an object's HyperTalk source by id; true if updated.
+    pub fn set_object_script(&self, object_id: i32, src: String) -> bool {
+        self.inner
+            .lock()
+            .unwrap()
+            .set_object_script(object_id as u32, &src)
+    }
+
+    /// Create a "button" or "field" on the current card; returns the new id, or -1.
+    pub fn add_object(&self, kind: String) -> i32 {
+        self.inner
+            .lock()
+            .unwrap()
+            .add_object(&kind)
+            .map(|id| id as i32)
+            .unwrap_or(-1)
+    }
+
+    /// Delete an object by id; true if one was removed.
+    pub fn delete_object(&self, object_id: i32) -> bool {
+        self.inner.lock().unwrap().delete_object(object_id as u32)
+    }
+
+    /// Move/resize an object by id (drag commit); true if one was updated.
+    pub fn set_object_rect(&self, object_id: i32, x: f32, y: f32, w: f32, h: f32) -> bool {
+        self.inner
+            .lock()
+            .unwrap()
+            .set_object_rect(object_id as u32, x, y, w, h)
+    }
+
+    /// Read an object's editable properties as a JSON blob ("" if it doesn't exist). Still JSON
+    /// pending a typed props record.
+    pub fn object_props(&self, object_id: i32) -> String {
+        self.inner
+            .lock()
+            .unwrap()
+            .get_object_props(object_id as u32)
+            .unwrap_or_default()
+    }
+
+    /// Apply a JSON property blob to an object; true if the object was found.
+    pub fn set_object_props(&self, object_id: i32, props_json: String) -> bool {
+        self.inner
+            .lock()
+            .unwrap()
+            .set_object_props(object_id as u32, &props_json)
+    }
+
+    /// Serialize the current stack to YAML (for saving the per-stack working copy).
+    pub fn to_yaml(&self) -> String {
+        self.inner.lock().unwrap().to_yaml()
+    }
+}
+
+impl HyperStack {
+    fn wrap(loaded: Result<Session, String>) -> Result<Arc<HyperStack>, BridgeError> {
+        let session = loaded.map_err(|reason| BridgeError::Load { reason })?;
+        Ok(Arc::new(HyperStack {
+            inner: Mutex::new(session),
+        }))
     }
 }

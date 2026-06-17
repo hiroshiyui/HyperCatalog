@@ -10,7 +10,6 @@ import android.util.AttributeSet
 import android.view.GestureDetector
 import android.view.MotionEvent
 import android.view.View
-import org.json.JSONObject
 import kotlin.math.abs
 
 /** A draw primitive for one card object, in card coordinates. */
@@ -61,7 +60,8 @@ class CardView @JvmOverloads constructor(
         fun onSelectionChanged(objectId: Int)
     }
 
-    var handle: Long = 0L
+    /** The active stack (typed UniFFI bridge); null until a stack is loaded. */
+    var stack: uniffi.hyperffi.HyperStack? = null
     var callbacks: Callbacks? = null
 
     /** When true, taps select objects and drags move/resize them, instead of running scripts. */
@@ -141,33 +141,31 @@ class CardView @JvmOverloads constructor(
 
     /** Re-fetch the current card's render list from the core and repaint. */
     fun refresh() {
-        if (handle == 0L) return
-        parseRender(NativeBridge.nativeRender(handle))
+        val s = stack ?: return
+        populateRender(s.renderCurrentCard())
         invalidate()
     }
 
-    private fun parseRender(json: String) {
-        val obj = JSONObject(json)
-        cardW = obj.optDouble("width", 360.0).toFloat().coerceAtLeast(1f)
-        cardH = obj.optDouble("height", 540.0).toFloat().coerceAtLeast(1f)
-        val arr = obj.optJSONArray("items") ?: return
-        items = (0 until arr.length()).map { i ->
-            val it = arr.getJSONObject(i)
+    /** Copy the typed [RenderList] into the local draw model. */
+    private fun populateRender(rl: uniffi.hyperffi.RenderList) {
+        cardW = rl.width.coerceAtLeast(1f)
+        cardH = rl.height.coerceAtLeast(1f)
+        items = rl.items.map { it ->
             DrawItem(
-                kind = it.getString("kind"),
-                id = it.getInt("id"),
-                x = it.getDouble("x").toFloat(),
-                y = it.getDouble("y").toFloat(),
-                w = it.getDouble("w").toFloat(),
-                h = it.getDouble("h").toFloat(),
-                text = it.optString("text"),
-                style = it.optString("style"),
-                visible = it.optBoolean("visible", true),
-                locked = it.optBoolean("locked", false),
-                textFont = it.optString("text_font"),
-                textSize = it.optDouble("text_size", 16.0).toFloat(),
-                textStyle = it.optString("text_style"),
-                textAlign = it.optString("text_align"),
+                kind = it.kind,
+                id = it.id,
+                x = it.x,
+                y = it.y,
+                w = it.w,
+                h = it.h,
+                text = it.text,
+                style = it.style,
+                visible = it.visible,
+                locked = it.locked,
+                textFont = it.textFont,
+                textSize = it.textSize,
+                textStyle = it.textStyle,
+                textAlign = it.textAlign,
             )
         }
     }
@@ -279,7 +277,7 @@ class CardView @JvmOverloads constructor(
     )
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
-        if (handle == 0L) return true
+        if (stack == null) return true
         if (editMode) return handleEditTouch(event)
         return handleBrowseTouch(event)
     }
@@ -305,7 +303,7 @@ class CardView @JvmOverloads constructor(
                     callbacks?.commitPendingEdit()
                     val cx = tf.viewToCardX(event.x)
                     val cy = tf.viewToCardY(event.y)
-                    applyDispatchResult(JSONObject(NativeBridge.nativeDispatchTouch(handle, cx, cy, "up")))
+                    stack?.let { applyDispatchResult(it.dispatchTouch(cx, cy, "up")) }
                 }
                 true
             }
@@ -362,7 +360,7 @@ class CardView @JvmOverloads constructor(
         callbacks?.commitPendingEdit()
         val cx = tf.viewToCardX(viewX)
         val cy = tf.viewToCardY(viewY)
-        applyDispatchResult(JSONObject(NativeBridge.nativeDispatchGesture(handle, cx, cy, gesture)))
+        stack?.let { applyDispatchResult(it.dispatchGesture(cx, cy, gesture)) }
     }
 
     /**
@@ -370,34 +368,34 @@ class CardView @JvmOverloads constructor(
      * asked (tap path only; gestures never set `focus_field`), and repaint — running the new
      * card's `openCard` on a navigation. Shared by the tap and gesture paths.
      */
-    private fun applyDispatchResult(result: JSONObject) {
-        val error = if (result.isNull("error")) null else result.optString("error").ifEmpty { null }
-        val effects = parseEffects(result.optJSONArray("host_cmds"))
+    private fun applyDispatchResult(result: uniffi.hyperffi.DispatchResult) {
+        val error = result.error
+        val effects = result.hostCmds.map { hostEffect(it) }
         if (effects.isNotEmpty() || error != null) {
             callbacks?.onEffects(effects, error)
         }
 
-        if (!result.isNull("focus_field")) {
-            val id = result.getInt("focus_field")
+        result.focusField?.let { id ->
             items.firstOrNull { it.id == id }?.let { f ->
                 callbacks?.onEditField(id, toView(f), f.text)
             }
         }
 
-        if (result.optBoolean("card_changed")) {
-            NativeBridge.nativeOpenCard(handle)
+        if (result.cardChanged) {
+            stack?.openCard() // run the new card's openCard handler
             refresh()
-        } else if (result.optBoolean("needs_redraw")) {
+        } else if (result.needsRedraw) {
             refresh()
         }
     }
 
-    private fun parseEffects(arr: org.json.JSONArray?): List<HostEffect> {
-        if (arr == null) return emptyList()
-        return (0 until arr.length()).map { i ->
-            val o = arr.getJSONObject(i)
-            HostEffect(o.optString("type"), o.optString("text"))
-        }
+    /** Flatten a typed bridge [HostEffect] into the host's `(type, text)` form. */
+    private fun hostEffect(e: uniffi.hyperffi.HostEffect): HostEffect = when (e) {
+        is uniffi.hyperffi.HostEffect.Answer -> HostEffect("answer", e.text)
+        is uniffi.hyperffi.HostEffect.Message -> HostEffect("message", e.text)
+        is uniffi.hyperffi.HostEffect.Beep -> HostEffect("beep", "")
+        is uniffi.hyperffi.HostEffect.GoStack -> HostEffect("gostack", e.name)
+        is uniffi.hyperffi.HostEffect.ShowStacks -> HostEffect("showstacks", "")
     }
 
     /**
@@ -415,7 +413,7 @@ class CardView @JvmOverloads constructor(
                     drag = Drag.RESIZE
                     draft = RectF(sel.x, sel.y, sel.x + sel.w, sel.y + sel.h)
                 } else {
-                    val id = NativeBridge.nativeObjectAt(handle, cx, cy)
+                    val id = stack?.objectAt(cx, cy) ?: -1
                     if (id >= 0) {
                         if (id != selectedId) selectObject(id)
                         val obj = items.first { it.id == id }
@@ -452,9 +450,7 @@ class CardView @JvmOverloads constructor(
             MotionEvent.ACTION_UP -> {
                 val d = draft
                 if (d != null && drag != Drag.NONE && selectedId >= 0) {
-                    NativeBridge.nativeSetObjectRect(
-                        handle, selectedId, d.left, d.top, d.width(), d.height(),
-                    )
+                    stack?.setObjectRect(selectedId, d.left, d.top, d.width(), d.height())
                     refresh()
                 }
                 drag = Drag.NONE

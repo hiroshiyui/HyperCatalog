@@ -12,26 +12,28 @@ authoring environment.
 
 ## Architecture (the big picture)
 
-Two halves connected by a small, event-driven JNI bridge that exchanges **JSON strings**:
+Two halves connected by a **UniFFI-generated typed bridge** (ADR-0012 — no hand-written JNI, no
+JSON on the wire); the host drives a typed `HyperStack` object:
 
 ```
 Android (Kotlin host, thin)                    rust/ workspace
-  MainActivity ─ load/save, EditText overlay     hyperffi  (cdylib)  JNI: Java_..._NativeBridge_*
-  CardView     ─ Canvas draw + hit-test  ──JNI──▶ hypercore (lib)    model + HyperTalk + Session
-  NativeBridge ─ external funs                    hyper-desktop (bin) headless REPL
+  MainActivity ─ load/save, EditText overlay     hyperffi  (cdylib)  UniFFI: bridge.rs (HyperStack)
+  CardView     ─ Canvas draw + hit-test ─uniffi─▶ hypercore (lib)    model + HyperTalk + Session
+  (uniffi.hyperffi.* generated Kotlin, via JNA)   hyper-desktop (bin) headless REPL
 ```
 
 - **`rust/hypercore`** is the heart and has **no Android dependencies**. Sub-structure:
   - `model.rs` — `Stack → Card/Background → Button/Field` (serde, JSON-persistable).
   - `script/` — `lexer` → `parser` → `ast` → `interp` (the `Runtime` that executes handlers
     against a `&mut Stack`), plus `value` (HyperTalk's string-centric `Value`).
-  - `session.rs` — the **only** surface hosts call: `Session::load_from_json` /
-    `load_from_yaml` (YAML is the readable authoring format, ADR-0011; same model, alternate
+  - `session.rs` — the **only** surface hosts call (the platform-agnostic facade): `load_from_json`
+    / `load_from_yaml` (YAML is the readable authoring format, ADR-0011; same model, alternate
     parser), `render_current_card` (→ `RenderList` of draw primitives), `dispatch_touch` (hit-tests,
     runs scripts, returns `DispatchResult` with `host_cmds`/`focus_field`/`card_changed`),
     `dispatch_gesture` (post-WIMP touchscreen gestures — `tap`/`doubleTap`/`longPress`/`swipe*`
     — sent as messages that bubble the same path; never focuses a field), `set_field_text`,
-    `to_json`.
+    `to_yaml`. `hyperffi/bridge.rs` re-exposes these as a UniFFI `HyperStack` object (typed
+    records, `i32` ids); the Kotlin bindings are generated, so there is no hand-written JNI.
 - **Message path** (HyperCard semantics, in `session::collect_path`): a tapped object's script
   runs first, then card → background → stack; the first matching handler wins. **Background
   objects' own scripts must be searched too** — a past bug only looked at the card layer. Touch
@@ -41,19 +43,19 @@ Android (Kotlin host, thin)                    rust/ workspace
   host to perform; the host also performs the EditText overlay for
   editable (unlocked) fields when `dispatch_touch` returns `focus_field`.
 - **Rendering**: the core emits card-coordinate draw primitives; `CardView` letterbox-scales
-  them onto a Canvas and maps touches back. Redraws are event-driven (taps), not per-frame —
-  hence JSON-string marshalling is fine.
+  them onto a Canvas and maps touches back. Redraws are event-driven (taps), not per-frame.
 - **Persistence**: stacks are **YAML** end to end (ADR-0011) — bundled assets are `assets/*.yaml`
   (readable block scalars; default `productivity`), and the host saves each stack's per-stack
   working copy as `filesDir/stacks/<key>.yaml` (on pause/switch), remembering the last-used stack
   in `filesDir/last_stack`. JSON is **deprecated for stacks**: `load_from_json` still reads legacy
-  `.json` assets/copies for compatibility, but nothing writes JSON. The **JNI bridge** still uses
-  JSON for now (being migrated to UniFFI — ADR-0012). The current card index is **not** persisted
-  (reopens at card 1).
+  `.json` assets/copies for compatibility, but nothing writes JSON. The current card index is
+  **not** persisted (reopens at card 1).
 
-When changing the cross-language contract, keep three things in sync: the serde structs in
-`hypercore::session`, the JNI signatures in `hyperffi/src/android.rs`, and the JSON parsing in
-`CardView.kt` / `NativeBridge.kt`.
+When changing the cross-language contract, edit the typed surface in `hyperffi/src/bridge.rs`
+(UniFFI records/enums + `HyperStack` methods) — the Kotlin bindings are **generated** by the
+`uniffiBindgen` Gradle task, so there's no second place to hand-edit (the old serde ↔ `android.rs`
+↔ `org.json` three-place sync is gone). Object **props** are the one remaining JSON-string blob
+(the inspector), parsed with `org.json`, pending a typed shape.
 
 ## Commands
 
@@ -88,9 +90,11 @@ reinstalling — Gradle won't see Rust source changes unless `cargoNdkBuild` rer
 - **Rust 2024 edition** + toolchain pinned to **1.95** (`rust/rust-toolchain.toml`). This means
   `#[unsafe(no_mangle)]` (not `#[no_mangle]`) and `unsafe {}` blocks inside `unsafe fn`. Let-chains
   (`if let ... && let ...`) are used and available.
-- **`org.json` quirk**: `optString("error")` returns the literal string `"null"` for a JSON
-  `null`. Use `isNull(key)` first (see `CardView`). The Rust side serializes `Option::None` as
-  `null`.
+- **UniFFI bridge** (ADR-0012): the host↔core boundary is a generated typed `HyperStack` (no JSON,
+  no `org.json` for render/dispatch). The generated Kotlin uses **JNA** at runtime (`jna:5.15@aar`),
+  and `uniffiBindgen` reads metadata from a **host** (unstripped) build because the Android release
+  `.so` is stripped. `org.json` survives only for the authoring **props blob** (`object_props` /
+  `set_object_props`).
 - **compileSdk is 37** (androidx.core 1.19.0 requires it); NDK `29.0.14206865`; ABIs limited to
   arm64-v8a + x86_64. The NDK revision is the `rustNdkVersion` constant in `app/build.gradle.kts`,
   shared with AGP and cargo-ndk.

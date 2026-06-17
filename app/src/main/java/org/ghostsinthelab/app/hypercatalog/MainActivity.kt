@@ -6,7 +6,6 @@ import android.media.AudioManager
 import android.media.ToneGenerator
 import android.os.Bundle
 import android.text.InputType
-import android.util.Log
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
@@ -40,7 +39,8 @@ import java.io.File
  */
 class MainActivity : AppCompatActivity(), CardView.Callbacks {
 
-    private var handle: Long = 0L
+    /** The active stack via the typed UniFFI bridge (ADR-0012); null until one is loaded. */
+    private var stack: uniffi.hyperffi.HyperStack? = null
     private lateinit var root: FrameLayout
     private lateinit var cardView: CardView
     private lateinit var editor: EditText
@@ -75,24 +75,6 @@ class MainActivity : AppCompatActivity(), CardView.Callbacks {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-
-        // UniFFI typed read-path smoke test (ADR-0012, stage 2): load a stack and render it via
-        // the generated typed bridge — no JSON. Temporary; CardView adopts it next.
-        runCatching {
-            val demo = uniffi.hyperffi.HyperStack.loadYaml(
-                "name: Smoke\n" +
-                    "cards:\n  - id: 1\n    name: One\n    buttons:\n" +
-                    "      - id: 9\n        name: b\n        rect: { x: 0, y: 0, w: 50, h: 50 }\n" +
-                    "        script: |\n          on mouseUp\n            beep\n          end mouseUp",
-            )
-            val rl = demo.renderCurrentCard()
-            val d = demo.dispatchTouch(10f, 10f, "up") // taps the button -> beep effect
-            Log.i(
-                "UniFFI",
-                "typed render -> card=${rl.cardName}, items=${rl.items.size}; " +
-                    "dispatch -> redraw=${d.needsRedraw}, effects=${d.hostCmds.size}, err=${d.error}",
-            )
-        }.onFailure { Log.e("UniFFI", "typed bridge failed", it) }
 
         root = FrameLayout(this)
         root.id = View.generateViewId()
@@ -188,10 +170,10 @@ class MainActivity : AppCompatActivity(), CardView.Callbacks {
 
     /** Load the stack named [key]: its saved working copy (YAML; legacy JSON accepted) if
      *  present, else the bundled asset (YAML authoring format, or legacy JSON). Frees the
-     *  previous handle and remembers [key] as the stack to reopen. */
+     *  previous stack and remembers [key] as the stack to reopen. */
     private fun loadStackKey(key: String) {
         val saved = savedCopyFor(key)
-        val newHandle: Long = if (saved != null) {
+        val loaded: uniffi.hyperffi.HyperStack? = if (saved != null) {
             loadContent(runCatching { saved.readText() }.getOrDefault(""), saved.name)
         } else {
             val asset = assetFileFor(key) ?: run {
@@ -203,15 +185,15 @@ class MainActivity : AppCompatActivity(), CardView.Callbacks {
             }.getOrNull().orEmpty()
             loadContent(content, asset)
         }
-        if (newHandle == 0L) {
+        if (loaded == null) {
             Toast.makeText(this, "Failed to load stack \"$key\"", Toast.LENGTH_LONG).show()
             return
         }
-        if (handle != 0L) NativeBridge.nativeFree(handle)
-        handle = newHandle
+        stack?.destroy()
+        stack = loaded
         currentKey = key
-        cardView.handle = handle
-        NativeBridge.nativeOpenCard(handle)
+        cardView.stack = loaded
+        loaded.openCard()
         cardView.refresh()
         runCatching { lastStackFile.writeText(key) }
     }
@@ -219,10 +201,11 @@ class MainActivity : AppCompatActivity(), CardView.Callbacks {
     /** Save the current stack to its own YAML working copy, so edits survive a switch or
      *  restart. Supersedes (deletes) any legacy JSON copy — stacks are JSON-free now. */
     private fun saveCurrentStack() {
-        if (handle != 0L && currentKey.isNotEmpty()) {
+        val s = stack ?: return
+        if (currentKey.isNotEmpty()) {
             stacksDir.mkdirs()
             runCatching {
-                File(stacksDir, "$currentKey.yaml").writeText(NativeBridge.nativeToYaml(handle))
+                File(stacksDir, "$currentKey.yaml").writeText(s.toYaml())
                 File(stacksDir, "$currentKey.json").delete()
             }
         }
@@ -232,13 +215,16 @@ class MainActivity : AppCompatActivity(), CardView.Callbacks {
     private fun savedCopyFor(key: String): File? =
         listOf("$key.yaml", "$key.json").map { File(stacksDir, it) }.firstOrNull { it.exists() }
 
-    /** Load [content] with the parser implied by [filename]'s extension (YAML vs JSON). */
-    private fun loadContent(content: String, filename: String): Long =
-        if (filename.endsWith(".yaml") || filename.endsWith(".yml")) {
-            NativeBridge.nativeLoadYaml(content)
-        } else {
-            NativeBridge.nativeLoad(content)
-        }
+    /** Load [content] into a [HyperStack] using the parser implied by [filename]'s extension
+     *  (YAML vs legacy JSON); null if it fails to parse. */
+    private fun loadContent(content: String, filename: String): uniffi.hyperffi.HyperStack? =
+        runCatching {
+            if (filename.endsWith(".yaml") || filename.endsWith(".yml")) {
+                uniffi.hyperffi.HyperStack.loadYaml(content)
+            } else {
+                uniffi.hyperffi.HyperStack.loadJson(content)
+            }
+        }.getOrNull()
 
     private fun showStackPicker() {
         commitPendingEdit()
@@ -364,8 +350,8 @@ class MainActivity : AppCompatActivity(), CardView.Callbacks {
     }
 
     override fun onEditScript(objectId: Int) {
-        if (handle == 0L) return
-        val current = NativeBridge.nativeGetObjectScript(handle, objectId)
+        val s = stack ?: return
+        val current = s.objectScript(objectId)
         val input = EditText(this).apply {
             setText(current)
             setSelection(text.length)
@@ -385,12 +371,12 @@ class MainActivity : AppCompatActivity(), CardView.Callbacks {
         dialog.setOnShowListener {
             dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
                 val src = input.text.toString()
-                val err = NativeBridge.nativeCheckScript(src)
+                val err = uniffi.hyperffi.checkScript(src)
                 if (err.isNotEmpty()) {
                     // Keep the dialog open so the user can fix the source.
                     Toast.makeText(this, "Parse error: $err", Toast.LENGTH_LONG).show()
                 } else {
-                    NativeBridge.nativeSetObjectScript(handle, objectId, src)
+                    stack?.setObjectScript(objectId, src)
                     cardView.refresh()
                     dialog.dismiss()
                 }
@@ -424,8 +410,8 @@ class MainActivity : AppCompatActivity(), CardView.Callbacks {
     }
 
     private fun createObject(kind: String) {
-        if (handle == 0L) return
-        val id = NativeBridge.nativeAddObject(handle, kind)
+        val s = stack ?: return
+        val id = s.addObject(kind)
         if (id >= 0) {
             cardView.refresh()
             cardView.selectObject(id)
@@ -433,15 +419,15 @@ class MainActivity : AppCompatActivity(), CardView.Callbacks {
     }
 
     private fun deleteObject(objectId: Int) {
-        if (handle == 0L) return
-        NativeBridge.nativeDeleteObject(handle, objectId)
+        val s = stack ?: return
+        s.deleteObject(objectId)
         cardView.clearSelection()
         cardView.refresh()
     }
 
     private fun showInspector(objectId: Int) {
-        if (handle == 0L) return
-        val json = NativeBridge.nativeGetObjectProps(handle, objectId)
+        val s = stack ?: return
+        val json = s.objectProps(objectId) // still a JSON blob (the inspector's props shape)
         if (json.isEmpty()) return
         val props = JSONObject(json)
         val kind = props.optString("kind")
@@ -561,7 +547,7 @@ class MainActivity : AppCompatActivity(), CardView.Callbacks {
                         if (underlineCheck.isChecked) add("underline")
                     }.joinToString(","),
                 )
-                NativeBridge.nativeSetObjectProps(handle, objectId, out.toString())
+                stack?.setObjectProps(objectId, out.toString())
                 cardView.refresh()
             }
             .setNegativeButton(android.R.string.cancel, null)
@@ -569,8 +555,8 @@ class MainActivity : AppCompatActivity(), CardView.Callbacks {
     }
 
     private fun commitEdit() {
-        if (editingFieldId >= 0 && handle != 0L) {
-            NativeBridge.nativeSetFieldText(handle, editingFieldId, editor.text.toString())
+        if (editingFieldId >= 0) {
+            stack?.setFieldText(editingFieldId, editor.text.toString())
         }
         editingFieldId = -1
         editor.visibility = View.GONE
@@ -594,9 +580,7 @@ class MainActivity : AppCompatActivity(), CardView.Callbacks {
 
     override fun onDestroy() {
         super.onDestroy()
-        if (handle != 0L) {
-            NativeBridge.nativeFree(handle)
-            handle = 0L
-        }
+        stack?.destroy()
+        stack = null
     }
 }
