@@ -105,9 +105,9 @@ reinstalling — Gradle won't see Rust source changes unless `cargoNdkBuild` rer
   15+ devices may use 16 KB pages and Play requires support. NDK 29 (≥ r28) links the `.so`
   16 KB-aligned by default; `rust/.cargo/config.toml` also sets `-Wl,-z,max-page-size=16384`
   explicitly. Verify with `llvm-readelf -l libhyperffi.so | grep LOAD` (align must be `0x4000`).
-  Caveat for the UniFFI bridge (ADR-0012): JNA 5.15's `libjnidispatch.so` is 16 KB-aligned on
-  arm64-v8a but only 4 KB-aligned on **x86_64** — emulator-only, so it doesn't affect Play/real
-  (arm64) compliance, but it can trip the emulator's page-size warning.
+  The UniFFI bridge (ADR-0012) bundles JNA's `libjnidispatch.so`: pin **JNA ≥ 5.16** (we use
+  5.17) — it's 16 KB-aligned on both arm64-v8a and x86_64, whereas 5.15 was only 4 KB-aligned on
+  x86_64 and tripped the emulator's page-size warning.
 - The HyperTalk interpreter is a **subset** (documented in `rust/README.md`). Unknown custom
   messages (`Stmt::Send`) are no-ops; `repeat`/property coverage is partial.
 

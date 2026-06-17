@@ -85,8 +85,9 @@ dependencies {
     implementation(libs.androidx.constraintlayout)
     implementation(libs.androidx.core.ktx)
     implementation(libs.material)
-    // UniFFI-generated Kotlin bindings load the native library via JNA (ADR-0012).
-    implementation("net.java.dev.jna:jna:5.15.0@aar")
+    // UniFFI-generated Kotlin bindings load the native library via JNA (ADR-0012). 5.16+ ships a
+    // 16 KB-aligned libjnidispatch.so on x86_64 too (5.15 was 4 KB-aligned there). See ADR-0012.
+    implementation("net.java.dev.jna:jna:5.17.0@aar")
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(libs.androidx.junit)
