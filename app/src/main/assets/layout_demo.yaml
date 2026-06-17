@@ -1,0 +1,54 @@
+# Responsive layout demo (ADR-0014/0016/0018). In native mode this card reflows via its `layout`
+# overlay — a column of [heading, 2×2 grid, weighted row, switch, status] — and themes from the
+# accent seed; in classic mode the same objects sit at their absolute rects below. Toggle the
+# Native/Classic button to compare. Authored in YAML (ADR-0011).
+name: Layout Demo
+width: 360
+height: 640
+accent_color: "#386A20"
+backgrounds:
+  - id: 1
+    name: nav
+    buttons:
+      - id: 90
+        name: stacks
+        rect: { x: 12, y: 8, w: 120, h: 36 }
+        title: Stacks
+        style: rectangle
+        script: |-
+          on mouseUp
+            show stacks
+          end mouseUp
+cards:
+  - id: 1
+    name: Tiles
+    background_id: 1
+    fields:
+      - { id: 1, name: title, rect: { x: 20, y: 60, w: 320, h: 44 }, text: "Responsive tiles",
+          locked: true, text_role: headlineSmall }
+      - { id: 2, name: status, rect: { x: 20, y: 560, w: 320, h: 40 }, text: "tap a tile",
+          locked: true, text_align: center, text_role: titleMedium }
+    buttons:
+      - { id: 10, name: one, rect: { x: 20, y: 120, w: 150, h: 80 }, title: "One", role: filled,
+          script: "on mouseUp\n  put \"One\" into field \"status\"\nend mouseUp" }
+      - { id: 11, name: two, rect: { x: 190, y: 120, w: 150, h: 80 }, title: "Two", role: tonal,
+          script: "on mouseUp\n  put \"Two\" into field \"status\"\nend mouseUp" }
+      - { id: 12, name: three, rect: { x: 20, y: 210, w: 150, h: 80 }, title: "Three", role: elevated,
+          script: "on mouseUp\n  put \"Three\" into field \"status\"\nend mouseUp" }
+      - { id: 13, name: four, rect: { x: 190, y: 210, w: 150, h: 80 }, title: "Four", role: outlined,
+          script: "on mouseUp\n  put \"Four\" into field \"status\"\nend mouseUp" }
+      - { id: 20, name: dec, rect: { x: 20, y: 310, w: 150, h: 48 }, title: "Quieter", role: text,
+          script: "on mouseUp\n  put \"shhh\" into field \"status\"\nend mouseUp" }
+      - { id: 21, name: reset, rect: { x: 190, y: 310, w: 150, h: 48 }, title: "Reset", role: filled,
+          script: "on mouseUp\n  put \"tap a tile\" into field \"status\"\nend mouseUp" }
+      - { id: 30, name: wifi, rect: { x: 20, y: 380, w: 320, h: 48 }, title: "Wi-Fi", checked: false,
+          script: "on mouseUp\n  if the checked of me then put \"Wi-Fi on\" into field \"status\"\n  else put \"Wi-Fi off\" into field \"status\"\nend mouseUp" }
+    layout:
+      mode: column
+      padding: 16
+      children:
+        - 1
+        - { mode: grid, columns: 2, padding: 4, children: [10, 11, 12, 13] }
+        - { mode: row, padding: 4, children: [20, 21] }
+        - 30
+        - 2

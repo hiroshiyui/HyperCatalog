@@ -13,6 +13,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import android.os.Build
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.material3.Button
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.ElevatedButton
@@ -41,6 +42,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import uniffi.hyperffi.DispatchResult
 import uniffi.hyperffi.HyperStack
@@ -235,13 +237,14 @@ private fun RenderNode(
             val click = { onResult(stack.dispatch(node.id, "mouseUp", emptyList())) }
             // Material role (ADR-0018) wins; else fall back to the abstract style → role mapping.
             val role = node.prop("role").ifEmpty { styleToRole(node.prop("style")) }
+            val pad = CompactButtonPadding
             when (role) {
-                "filled" -> Button(onClick = click, modifier = modifier) { Text(label) }
-                "tonal" -> FilledTonalButton(onClick = click, modifier = modifier) { Text(label) }
-                "elevated" -> ElevatedButton(onClick = click, modifier = modifier) { Text(label) }
-                "text" -> TextButton(onClick = click, modifier = modifier) { Text(label) }
-                "fab" -> ExtendedFloatingActionButton(onClick = click, modifier = modifier) { Text(label) }
-                else -> OutlinedButton(onClick = click, modifier = modifier) { Text(label) }
+                "filled" -> Button(click, modifier, contentPadding = pad) { ButtonLabel(label) }
+                "tonal" -> FilledTonalButton(click, modifier, contentPadding = pad) { ButtonLabel(label) }
+                "elevated" -> ElevatedButton(click, modifier, contentPadding = pad) { ButtonLabel(label) }
+                "text" -> TextButton(click, modifier, contentPadding = pad) { ButtonLabel(label) }
+                "fab" -> ExtendedFloatingActionButton(onClick = click, modifier = modifier) { ButtonLabel(label) }
+                else -> OutlinedButton(click, modifier, contentPadding = pad) { ButtonLabel(label) }
             }
         }
 
@@ -291,6 +294,16 @@ private fun RenderNode(
 private fun ViewNode.prop(key: String): String = props.firstOrNull { it.key == key }?.value ?: ""
 
 private fun ViewNode.weight(): Float = prop("weight").toFloatOrNull() ?: 0f
+
+/** Compact button content padding so labels fit narrow (rect-sized) buttons in `free` mode. */
+private val CompactButtonPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+
+/** A button label that stays on one line (clipping with an ellipsis) instead of wrapping in a
+ *  tight button — e.g. a narrow nav button placed by its rect. */
+@Composable
+private fun ButtonLabel(label: String) {
+    Text(label, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
+}
 
 /** Map a field's `align` (`left`/`center`/`right`) to a Compose [TextAlign]; unset → start. */
 private fun alignOf(align: String): TextAlign = when (align) {
