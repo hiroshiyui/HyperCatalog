@@ -528,6 +528,7 @@ impl Session {
                     text_role: String::new(),
                     content_description: String::new(),
                     live_region: String::new(),
+                    label: String::new(),
                 });
                 Some(id)
             }
@@ -1282,6 +1283,10 @@ fn field_node(f: &crate::model::Field) -> ViewNode {
                 value: f.text_role.clone(),
             },
             Prop {
+                key: "label".to_string(),
+                value: f.label.clone(),
+            },
+            Prop {
                 key: "contentDescription".to_string(),
                 value: f.content_description.clone(),
             },
@@ -1297,10 +1302,19 @@ fn field_node(f: &crate::model::Field) -> ViewNode {
 /// `"switch"` when `checked` is `Some` (legacy, ADR-0015), else `"button"`; `style` is the abstract
 /// `ButtonStyle`. Toggle/numeric/image controls add `checked`/`value`/`source` props.
 fn button_node(b: &crate::model::Button) -> ViewNode {
+    // A plain button falls back to its name when untitled (so it always shows something); a
+    // boolean/Material control (checkbox/radio/switch/…) has an *optional* label, so an unset title
+    // stays empty — e.g. a To-Do checkbox paired with a labelled task field shows no own text.
+    let is_control = !b.control.is_empty() || b.checked.is_some();
+    let title = if is_control {
+        b.title.clone()
+    } else {
+        b.label().to_string()
+    };
     let mut props = vec![
         Prop {
             key: "title".to_string(),
-            value: b.label().to_string(),
+            value: title,
         },
         Prop {
             key: "style".to_string(),

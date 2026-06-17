@@ -568,6 +568,7 @@ impl<'s> Runtime<'s> {
                     "textalign" => Value::from_text(f.text_align.clone()),
                     "weight" => Value::Number(f.weight as f64),
                     "textrole" => Value::from_text(f.text_role.clone()),
+                    "label" => Value::from_text(f.label.clone()),
                     "contentdescription" => Value::from_text(f.content_description.clone()),
                     "liveregion" => Value::from_text(f.live_region.clone()),
                     _ => geom_get(&prop, f.rect).unwrap_or(Value::Empty),
@@ -670,6 +671,7 @@ impl<'s> Runtime<'s> {
                         }
                     }
                     "textrole" => field.text_role = v.as_text(),
+                    "label" => field.label = v.as_text(),
                     "contentdescription" => field.content_description = v.as_text(),
                     "liveregion" => field.live_region = v.as_text(),
                     _ => {

@@ -292,27 +292,39 @@ private fun RenderNode(
 
         // Boolean controls (ADR-0015/0021): the core auto-toggles `checked` before mouseUp, so we
         // just dispatch and re-read. Switch trails its label; checkbox/radio lead (Material idiom).
+        // A boolean control's title is an *optional* label. When empty (e.g. a To-Do checkbox
+        // paired with its own task field), render just the control — no weighted Text, which would
+        // otherwise greedily eat the row's width and starve the sibling field.
         "switch" -> {
             val toggle = { onResult(stack.dispatch(node.id, "mouseUp", emptyList())) }
+            val title = node.prop("title")
             Row(modifier, verticalAlignment = Alignment.CenterVertically) {
-                Text(node.prop("title"), style = node.nodeTextStyle(), modifier = Modifier.weight(1f))
+                if (title.isNotEmpty()) {
+                    Text(title, style = node.nodeTextStyle(), modifier = Modifier.weight(1f))
+                }
                 Switch(checked = node.prop("checked") == "true", onCheckedChange = { toggle() })
             }
         }
 
         "checkbox" -> {
             val toggle = { onResult(stack.dispatch(node.id, "mouseUp", emptyList())) }
+            val title = node.prop("title")
             Row(modifier, verticalAlignment = Alignment.CenterVertically) {
                 Checkbox(checked = node.prop("checked") == "true", onCheckedChange = { toggle() })
-                Text(node.prop("title"), style = node.nodeTextStyle(), modifier = Modifier.weight(1f))
+                if (title.isNotEmpty()) {
+                    Text(title, style = node.nodeTextStyle(), modifier = Modifier.weight(1f))
+                }
             }
         }
 
         "radio" -> {
             val toggle = { onResult(stack.dispatch(node.id, "mouseUp", emptyList())) }
+            val title = node.prop("title")
             Row(modifier, verticalAlignment = Alignment.CenterVertically) {
                 RadioButton(selected = node.prop("checked") == "true", onClick = toggle)
-                Text(node.prop("title"), style = node.nodeTextStyle(), modifier = Modifier.weight(1f))
+                if (title.isNotEmpty()) {
+                    Text(title, style = node.nodeTextStyle(), modifier = Modifier.weight(1f))
+                }
             }
         }
 
@@ -380,14 +392,18 @@ private fun RenderNode(
                 // input box, honoring its text styling so it matches the Canvas target.
                 Text(text = node.prop("text"), style = node.nodeTextStyle(), modifier = modifier)
             } else {
-                // An editable field is a real text input (holds local edit state).
+                // An editable field is a real text input (holds local edit state). A `label`
+                // (ADR-0021) renders as the Material floating label inside the outline.
                 var draft by remember(node.id) { mutableStateOf(node.prop("text")) }
+                val label = node.prop("label")
                 OutlinedTextField(
                     value = draft,
                     onValueChange = {
                         draft = it
                         stack.setFieldText(node.id, it)
                     },
+                    label = label.takeIf { it.isNotEmpty() }?.let { { Text(it) } },
+                    singleLine = true,
                     textStyle = node.nodeTextStyle(),
                     modifier = modifier,
                 )

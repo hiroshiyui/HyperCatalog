@@ -133,6 +133,10 @@ pub struct Field {
     /// field announces its text changes to TalkBack — for status readouts. Native target only.
     #[serde(default)]
     pub live_region: String,
+    /// Material floating label for an editable field (native target only): the caption renders
+    /// *inside* the `OutlinedTextField` outline. `""` = no label. Ignored by the Canvas target.
+    #[serde(default)]
+    pub label: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

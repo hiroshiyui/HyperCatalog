@@ -268,6 +268,49 @@ fn weight_get_set_via_script() {
     assert_eq!(counter.text, "2");
 }
 
+#[test]
+fn label_get_set_via_script_and_projects() {
+    // A field's Material floating `label` (native target) is scriptable and projected to the view tree.
+    let yaml = r#"
+name: L
+cards:
+  - id: 1
+    name: One
+    fields:
+      - { id: 10, name: amount, rect: { x: 0, y: 0, w: 10, h: 10 }, text: "0", label: "Bill" }
+    buttons:
+      - { id: 20, name: go, rect: { x: 0, y: 20, w: 10, h: 10 },
+          script: "on mouseUp\n  set the label of field \"amount\" to \"Total\"\nend mouseUp" }
+"#;
+    let mut s = Session::load_from_yaml(yaml).unwrap();
+    // Authored label projects to the field node.
+    assert_eq!(
+        prop(
+            s.render_view_tree()
+                .nodes
+                .iter()
+                .find(|n| n.id == 10)
+                .unwrap(),
+            "label"
+        ),
+        "Bill"
+    );
+    // And it is settable via script.
+    let r = s.dispatch_by_id(20, "mouseUp", &[]);
+    assert!(r.error.is_none(), "error: {:?}", r.error);
+    assert_eq!(
+        prop(
+            s.render_view_tree()
+                .nodes
+                .iter()
+                .find(|n| n.id == 10)
+                .unwrap(),
+            "label"
+        ),
+        "Total"
+    );
+}
+
 // --- ADR-0022 accessibility: contentDescription + liveRegion ---
 
 #[test]

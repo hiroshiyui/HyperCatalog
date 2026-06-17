@@ -91,7 +91,8 @@ Object properties via `get`/`set the <prop> of <object>`:
 - native dialect (ADR-0014…0020; honored by the Compose render target, ignored by Canvas):
   buttons `checked` (a button with `checked` is a **switch**, auto-toggled before `mouseUp`),
   `role` (`filled`/`tonal`/`outlined`/`text`/`elevated`/`fab`), buttons & fields `weight` (flex in
-  a layout group); fields `textRole` (Material type scale); card `layout` (`column`/`row`/`grid`/
+  a layout group); fields `textRole` (Material type scale) and `label` (an editable field's Material
+  floating label — the caption renders inside the `OutlinedTextField` outline); card `layout` (`column`/`row`/`grid`/
   `free`) + `padding`, read-only `safeTop`/`safeRight`/`safeBottom`/`safeLeft` (dp); stack `theme`
   (`light`/`dark`/`system`/`dynamic`) + `accentColor`, and the same `safe*` insets.
 - card & stack: `name`, `number`.
