@@ -84,6 +84,7 @@ dependencies {
     implementation(libs.androidx.appcompat)
     implementation(libs.androidx.constraintlayout)
     implementation(libs.androidx.core.ktx)
+    implementation(libs.androidx.datastore.preferences) // host-owned session view state (ADR-0013)
     implementation(libs.material)
     // UniFFI-generated Kotlin bindings load the native library via JNA (ADR-0012). 5.16+ ships a
     // 16 KB-aligned libjnidispatch.so on x86_64 too (5.15 was 4 KB-aligned there). See ADR-0012.

@@ -26,6 +26,7 @@ import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import kotlinx.coroutines.runBlocking
 import java.io.File
 
 /**
@@ -57,8 +58,11 @@ class MainActivity : AppCompatActivity(), CardView.Callbacks {
      *  stack persists its own edits, so switching never clobbers another stack. */
     private val stacksDir: File by lazy { File(filesDir, "stacks") }
 
-    /** Remembers which stack to reopen on next launch. */
-    private val lastStackFile: File by lazy { File(filesDir, "last_stack") }
+    /** Host-owned session view state — last-used stack + per-stack card index (ADR-0013). */
+    private val prefs: StackPrefs by lazy { StackPrefs(this) }
+
+    /** Legacy plain-text `last_stack` file from before [prefs]; migrated on first run. */
+    private val legacyLastStackFile: File by lazy { File(filesDir, "last_stack") }
 
     /** Legacy single-slot save from before per-stack copies; migrated on first run. */
     private val legacyStack: File by lazy { File(filesDir, "stack.json") }
@@ -160,11 +164,20 @@ class MainActivity : AppCompatActivity(), CardView.Callbacks {
     /** On launch, reopen the last-used stack (or the default), migrating any legacy save. */
     private fun loadInitialStack() {
         migrateLegacySavedStack()
-        val remembered = lastStackFile.takeIf { it.exists() }
-            ?.let { runCatching { it.readText().trim() }.getOrNull() }
-            ?.takeIf { it.isNotEmpty() }
+        migrateLegacyLastStack()
+        val remembered = runBlocking { prefs.lastStack() }
         val key = (remembered ?: DEFAULT_STACK).let { if (stackContentFor(it) != null) it else DEFAULT_STACK }
         loadStackKey(key)
+    }
+
+    /** One-time migration: the old plain-text `last_stack` file becomes a [prefs] entry. */
+    private fun migrateLegacyLastStack() {
+        if (!legacyLastStackFile.exists()) return
+        val key = runCatching { legacyLastStackFile.readText().trim() }.getOrNull()
+        if (!key.isNullOrEmpty() && runBlocking { prefs.lastStack() } == null) {
+            runBlocking { prefs.setLastStack(key) }
+        }
+        runCatching { legacyLastStackFile.delete() }
     }
 
     /** Load the stack named [key]: its saved working copy (YAML; legacy JSON accepted) if
@@ -192,22 +205,23 @@ class MainActivity : AppCompatActivity(), CardView.Callbacks {
         stack = loaded
         currentKey = key
         cardView.stack = loaded
-        loaded.openCard()
+        // Restore the last-viewed card (ADR-0013); openCardAt(0) == openCard for a fresh stack.
+        loaded.openCardAt(runBlocking { prefs.cardIndex(key) })
         cardView.refresh()
-        runCatching { lastStackFile.writeText(key) }
+        runBlocking { prefs.setLastStack(key) }
     }
 
-    /** Save the current stack to its own YAML working copy, so edits survive a switch or
-     *  restart. Supersedes (deletes) any legacy JSON copy — stacks are JSON-free now. */
+    /** Save the current stack to its own YAML working copy (atomically, so a crash mid-write
+     *  can't truncate it), so edits survive a switch or restart. Also persists the current card
+     *  index as host-owned session state (ADR-0013). Supersedes any legacy JSON copy. */
     private fun saveCurrentStack() {
         val s = stack ?: return
-        if (currentKey.isNotEmpty()) {
-            stacksDir.mkdirs()
-            runCatching {
-                File(stacksDir, "$currentKey.yaml").writeText(s.toYaml())
-                File(stacksDir, "$currentKey.json").delete()
-            }
+        if (currentKey.isEmpty()) return
+        runCatching {
+            writeFileAtomically(File(stacksDir, "$currentKey.yaml"), s.toYaml())
+            File(stacksDir, "$currentKey.json").delete()
         }
+        runBlocking { prefs.setCardIndex(currentKey, s.currentCardIndex()) }
     }
 
     /** The saved working copy for [key] — YAML preferred, legacy JSON accepted — or null. */

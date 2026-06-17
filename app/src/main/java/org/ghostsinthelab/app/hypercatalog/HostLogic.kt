@@ -1,5 +1,6 @@
 package org.ghostsinthelab.app.hypercatalog
 
+import java.io.File
 import kotlin.math.abs
 
 /**
@@ -31,3 +32,29 @@ fun stackNameFrom(content: String, fallback: String): String {
     val raw = m.groupValues[1].trim().removeSuffix(",").trim().trim('"', '\'')
     return raw.ifEmpty { fallback }
 }
+
+/**
+ * Atomically replace [target]'s contents with [text]. Writes a sibling `<name>.tmp` then renames
+ * it over the target — `rename(2)` is atomic on the same filesystem, so a reader (or a crash
+ * mid-write) sees either the old complete file or the new one, never a truncated half. Plain
+ * `writeText` truncates-then-writes and would leave a corrupt stack if the process died mid-save.
+ * The fallback covers filesystems whose `rename` won't clobber an existing target.
+ */
+fun writeFileAtomically(target: File, text: String) {
+    target.parentFile?.mkdirs()
+    val tmp = File(target.parentFile, "${target.name}.tmp")
+    tmp.writeText(text)
+    if (tmp.renameTo(target)) return
+    // POSIX rename clobbers atomically; some filesystems require the target gone first.
+    target.delete()
+    if (!tmp.renameTo(target)) {
+        tmp.copyTo(target, overwrite = true)
+        tmp.delete()
+    }
+}
+
+/**
+ * DataStore preference key for a stack's last-viewed card index. Namespaced per stack key so each
+ * stack restores independently (ADR-0013). Pure (kept here so it's covered by `HostLogicTest`).
+ */
+fun cardIndexPrefKey(stackKey: String): String = "card_index/$stackKey"

@@ -92,6 +92,19 @@ fn go_next_card_navigates() {
 }
 
 #[test]
+fn goto_card_clamps_and_restores_index() {
+    // Backs the host's ADR-0013 card-index restore (HyperStack::open_card_at).
+    let mut s = Session::load_from_json(&sample_json()).unwrap();
+    let r = s.goto_card(1);
+    assert!(r.card_changed);
+    assert_eq!(s.card_index(), 1);
+    assert_eq!(s.render_current_card().card_name, "Second");
+    // Out-of-range index clamps to the last card rather than panicking.
+    s.goto_card(999);
+    assert_eq!(s.card_index(), s.card_count() - 1);
+}
+
+#[test]
 fn editable_field_requests_focus() {
     let mut s = Session::load_from_json(&sample_json()).unwrap();
     let r = s.dispatch_touch(20.0, 60.0, "up"); // unlocked "input" field

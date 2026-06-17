@@ -238,6 +238,22 @@ impl HyperStack {
         self.inner.lock().unwrap().open_current_card().into()
     }
 
+    /// The current card's 0-based index. The host persists this as *session* view state
+    /// (ADR-0013) — it is not part of the stack document.
+    pub fn current_card_index(&self) -> i32 {
+        self.inner.lock().unwrap().card_index() as i32
+    }
+
+    /// Navigate to a 0-based card index (clamped to the stack's range; negatives → 0) and fire
+    /// its `openCard`. Used by the host to restore the last-viewed card on reopen (ADR-0013).
+    pub fn open_card_at(&self, index: i32) -> DispatchResult {
+        self.inner
+            .lock()
+            .unwrap()
+            .goto_card(index.max(0) as usize)
+            .into()
+    }
+
     /// Dispatch a touch at a card-space point; `phase` is "up" for a completed tap.
     pub fn dispatch_touch(&self, x: f32, y: f32, phase: String) -> DispatchResult {
         self.inner

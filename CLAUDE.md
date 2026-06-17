@@ -44,12 +44,20 @@ Android (Kotlin host, thin)                    rust/ workspace
   editable (unlocked) fields when `dispatch_touch` returns `focus_field`.
 - **Rendering**: the core emits card-coordinate draw primitives; `CardView` letterbox-scales
   them onto a Canvas and maps touches back. Redraws are event-driven (taps), not per-frame.
-- **Persistence**: stacks are **YAML** end to end (ADR-0011) — bundled assets are `assets/*.yaml`
-  (readable block scalars; default `productivity`), and the host saves each stack's per-stack
-  working copy as `filesDir/stacks/<key>.yaml` (on pause/switch), remembering the last-used stack
-  in `filesDir/last_stack`. JSON is **deprecated for stacks**: `load_from_json` still reads legacy
-  `.json` assets/copies for compatibility, but nothing writes JSON. The current card index is
-  **not** persisted (reopens at card 1).
+- **Persistence** is layered by *what the data is* (ADR-0013): **document content vs. session view
+  state**.
+  - *Document content* → **YAML files**, end to end (ADR-0011). Bundled assets are `assets/*.yaml`
+    (readable block scalars; default `productivity`); the host saves each stack's per-stack working
+    copy as `filesDir/stacks/<key>.yaml` (on pause/switch) **atomically** (`writeFileAtomically`:
+    temp + `rename`, so a crash mid-save can't truncate it). JSON is **deprecated for stacks**:
+    `load_from_json` still reads legacy `.json` assets/copies, but nothing writes JSON.
+  - *Session view state* → a **Preferences DataStore** (`StackPrefs`), host-owned, never in the
+    document: the last-used stack key and **each stack's last-viewed card index** (`card_index/<key>`)
+    — so reopening lands on the card you left. The old `filesDir/last_stack` text file is migrated
+    in once. Card index is deliberately *not* in the stack YAML (it's the viewer's cursor, not
+    document content), so a shared/exported stack opens to its first card. The bridge gained
+    `currentCardIndex()`/`openCardAt(i)` (thin wrappers over `Session::card_index`/`goto_card`) for
+    the host to read/restore it.
 
 When changing the cross-language contract, edit the typed surface in `hyperffi/src/bridge.rs`
 (UniFFI records/enums + `HyperStack` methods, mirroring `hypercore` types) — the Kotlin bindings
