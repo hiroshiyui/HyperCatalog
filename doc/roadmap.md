@@ -22,9 +22,16 @@ architecture are recorded as ADRs under [`doc/adr/`](adr/).
   dispatch, gestures, authoring) — no hand-written JNI, no JSON on the wire. See
   [ADR-0012](adr/0012-uniffi-bridge.md) (supersedes the original JSON-over-JNI bridge,
   [ADR-0002](adr/0002-json-string-jni-bridge.md)).
+- **Native Material rendering** (Phase 5, below). A second render target: the core emits a semantic
+  `ViewTree` realized by a Jetpack Compose Material 3 renderer — layout (column/row/grid/free), the
+  `switch` kind, Material roles/theme, lifecycle messages, and safe-area insets
+  ([ADR-0008](adr/0008-native-view-rendering.md), 0014–0020).
+- **Persistence layering** ([ADR-0013](adr/0013-persistence-layering.md)). Atomic YAML stack writes;
+  a Preferences DataStore for session view state (last stack + per-stack card index).
 - **Sample content** (YAML, ADR-0011). `assets/sample.yaml` (demo), `assets/productivity.yaml`
-  (To-Do, Counters, Tip Split, Calculator, Temperature, Length — the default stack), and
-  `assets/gestures.yaml` (a 3-card swipe/long-press/double-tap demo for the touch gestures).
+  (To-Do, Counters, Tip Split, Calculator, Temperature, Length — the default stack),
+  `assets/gestures.yaml` (a 3-card swipe/long-press/double-tap + switch + lifecycle demo), and
+  `assets/layout_demo.yaml` (the native-dialect layout/roles/theme showcase, Phase 5).
 
 ## Direction
 
@@ -64,32 +71,47 @@ custom-message dispatch up the path (today `Stmt::Send` of an unknown command is
 *Enables: scripts that move/resize/show objects and restyle text (done) and, later, send their
 own messages.*
 
-### Phase 4 — Persistence & rendering polish
+### Phase 4 — Persistence & rendering polish *(mostly done)*
 
-Persist the current card index (today a stack reopens at card 1). Multi-line fields with wrap
-and scrolling (today single-line). A stack picker / multiple stacks instead of one default
-asset.
+**Done:** a stack picker over multiple bundled stacks + per-stack saved working copies, with
+`go to stack`/`show stacks`; **persistence layering** ([ADR-0013](adr/0013-persistence-layering.md))
+— atomic YAML stack writes + a Preferences DataStore for session view state, so the **last-viewed
+card index per stack is restored** on reopen. **Remaining:** multi-line fields with wrap/scroll
+(today single-line; the Compose editable field already wraps, the Canvas one doesn't).
 
-### Phase 5 — Android-native dialect *(north star)*
+### Phase 5 — Android-native dialect *(largely shipped)*
 
-A longer-horizon reference target: a HyperTalk dialect whose primitives are Android's, not 1987
-Mac's — Material components via **native-view rendering** (core emits a view tree, host builds
-real Material Views/Composables), the Activity lifecycle as system messages, a responsive dp
-layout system, and platform reach (permissions, intents, async, accessibility). It steers
-decisions rather than describing shipped behavior. Full vision in
-[`doc/design/android-hypertalk-dialect.md`](design/android-hypertalk-dialect.md).
+A HyperTalk dialect whose primitives are Android's, not 1987 Mac's. The gate ([ADR-0008](adr/0008-native-view-rendering.md))
+was a **second render target**: the core emits a semantic `ViewTree` (beside the Canvas draw list),
+which a **Jetpack Compose Material 3** renderer (`NativeCardScreen`) realizes as real widgets, with
+id-addressed dispatch into the same message path. A host toggle switches Classic ⇄ Native. The full
+vision is in [`doc/design/android-hypertalk-dialect.md`](design/android-hypertalk-dialect.md).
 
-**Started:** ADR-0008 has shipped — the core emits a semantic `ViewTree` consumed by a **Jetpack
-Compose Material 3** renderer (`NativeCardScreen`) beside the classic Canvas player. Most of the dialect has now shipped as a sequence of additive slices on the native render target:
-button/field (slice 1), nested **layout** groups + `weight` ([ADR-0014](adr/0014-layout-model-group-containers.md)),
-the **`switch`** kind ([ADR-0015](adr/0015-switch-object-kind.md)), **`grid`** mode + card-level
-layout scripting ([ADR-0016](adr/0016-grid-layout-and-card-layout-scripting.md)), **`free`**/absolute
-mode ([ADR-0017](adr/0017-free-absolute-layout-mode.md)), **Material roles/`textRole`/theme +
-dynamic color** ([ADR-0018](adr/0018-material-roles-and-theme.md)), **lifecycle messages**
-(`resume`/`suspend`/`backPressed`/`rotate` — [ADR-0019](adr/0019-lifecycle-messages.md)), and
-**safe-area insets** ([ADR-0020](adr/0020-safe-area-insets-and-constraints.md)). Still deferred: the
-`constraints`/anchor solver, `on rotate w,h` args, more object kinds (slider/chip/image/…), and a
-full seed→tonal-palette for non-dynamic theming.
+**Shipped** as additive slices on that target (each its own ADR, each verified with Rust +
+instrumented tests on a 16 KB-page emulator):
+
+- **Layout** — nested `column`/`row`/`grid` group overlays + per-object `weight`/group `padding`
+  ([ADR-0014](adr/0014-layout-model-group-containers.md), [ADR-0016](adr/0016-grid-layout-and-card-layout-scripting.md));
+  `set the layout/padding of this card` scripting; a `free`/absolute mode. A card with **no overlay
+  defaults to `free`** so native mirrors the classic layout (just as Material widgets); authors opt
+  **into** responsive layout by adding a `layout` ([ADR-0017](adr/0017-free-absolute-layout-mode.md)).
+- **`switch` kind** — a button with `checked`, auto-toggled, rendered as a Material `Switch`
+  ([ADR-0015](adr/0015-switch-object-kind.md)).
+- **Material theming** — `the role of` button (filled/tonal/outlined/text/elevated/fab), field
+  `textRole` type scale, stack `theme`/`accentColor` → a seeded `MaterialTheme` (Material You on
+  Android 12+) ([ADR-0018](adr/0018-material-roles-and-theme.md)).
+- **Lifecycle messages** — host-fired `resume`/`suspend`/`backPressed`/`rotate`; `DispatchResult.handled`
+  lets a stack consume back; `idle` dropped ([ADR-0019](adr/0019-lifecycle-messages.md)).
+- **Safe-area insets** — `the safeTop/safeRight/safeBottom/safeLeft of this card`, in dp
+  ([ADR-0020](adr/0020-safe-area-insets-and-constraints.md)).
+
+`assets/layout_demo.yaml` ("Layout Demo") showcases the grid/row/column reflow + roles + theme +
+switch; toggling Native/Classic on its card is a before/after of the whole dialect.
+
+**Still deferred:** the `constraints`/anchor solver (needs ConstraintLayout-Compose + an anchor
+model — [ADR-0020](adr/0020-safe-area-insets-and-constraints.md)); `on rotate w,h` args (typed
+message args); more object kinds (slider/chip/image/progress/…, same Design-B pattern as `switch`);
+and a full seed→tonal palette for non-`dynamic` theming.
 
 ## Non-goals (for now)
 

@@ -56,8 +56,9 @@ pub struct DrawCmd {
 /// to `RenderList`. The core says *what the UI is and means*; the host realizes it as real
 /// widgets. The tree is **flat** (id-indexed `nodes` + `root_ids`) so it crosses UniFFI cleanly
 /// (no recursive records) and stays forward-compatible: layout containers later populate
-/// `child_ids` without changing the shape. **No geometry/pixels cross outward** — the host owns
-/// layout (contrast `DrawCmd`, which carries card-coord rects for the Canvas target).
+/// `child_ids` without changing the shape. **Declarative layouts (column/row/grid) cross
+/// geometry-free** — the host owns layout; the **`free` mode and the no-layout default** mirror the
+/// classic Canvas, so object nodes there carry their card-unit `x/y/w/h` (ADR-0017).
 #[derive(Debug, Serialize, PartialEq)]
 pub struct ViewTree {
     pub stack_name: String,
@@ -258,8 +259,10 @@ impl Session {
 
     /// Build the **semantic view tree** for the current card — the native render target
     /// (ADR-0008), the structural analogue of [`Session::render_current_card`]. Same model walk
-    /// and z-order (background under card), but projected into abstract [`ViewNode`]s carrying
-    /// meaning, **not geometry**. The host realizes it as Material widgets.
+    /// and z-order (background under card), projected into abstract [`ViewNode`]s. A card with a
+    /// declarative `layout` overlay is geometry-free; one without defaults to `free` (ADR-0017),
+    /// mirroring the classic Canvas, so its nodes carry absolute geometry. The host realizes it as
+    /// Material widgets.
     pub fn render_view_tree(&self) -> ViewTree {
         let card = &self.stack.cards[self.card_index];
         let bg = card.background_id.and_then(|id| self.stack.background(id));

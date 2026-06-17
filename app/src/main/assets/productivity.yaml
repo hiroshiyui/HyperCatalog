@@ -339,7 +339,6 @@ cards:
       h: 36
     text: Water
     locked: true
-    weight: 2
   - id: 311
     name: cnt1
     rect:
@@ -349,7 +348,6 @@ cards:
       h: 36
     text: '0'
     locked: true
-    weight: 1
   - id: 302
     name: lbl2
     rect:
@@ -359,7 +357,6 @@ cards:
       h: 36
     text: Pushups
     locked: true
-    weight: 2
   - id: 312
     name: cnt2
     rect:
@@ -369,7 +366,6 @@ cards:
       h: 36
     text: '0'
     locked: true
-    weight: 1
   - id: 303
     name: lbl3
     rect:
@@ -379,7 +375,6 @@ cards:
       h: 36
     text: Pages
     locked: true
-    weight: 2
   - id: 313
     name: cnt3
     rect:
@@ -389,7 +384,6 @@ cards:
       h: 36
     text: '0'
     locked: true
-    weight: 1
   buttons:
   - id: 320
     name: minus1

@@ -63,4 +63,32 @@ class HyperStackBridgeTest {
             assertEquals(0, reloaded.currentCardIndex())
         }
     }
+
+    /** dispatchLifecycle (ADR-0019) runs a stack-level handler and reports `handled`; set_insets
+     *  (ADR-0020) is readable from script. Covers the two host-driven bridge methods over the .so. */
+    @Test
+    fun lifecycle_and_insets_cross_the_bridge() {
+        val src = """
+            name: LC
+            script: "on resume\n  put the safeTop of this card into field \"out\"\nend resume"
+            cards:
+              - id: 1
+                name: One
+                fields:
+                  - { id: 10, name: out, rect: { x: 0, y: 0, w: 10, h: 10 }, text: "" }
+        """.trimIndent()
+        val s = uniffi.hyperffi.HyperStack.loadYaml(src)
+        try {
+            s.setInsets(24f, 0f, 0f, 0f)
+            val r = s.dispatchLifecycle("resume")
+            assertEquals(true, r.handled)
+            // The `on resume` handler read the inset and wrote it into the field.
+            val out = s.objectProps(10)!!
+            assertEquals("24", out.text)
+            // No handler for this one → not handled.
+            assertEquals(false, s.dispatchLifecycle("backPressed").handled)
+        } finally {
+            s.destroy()
+        }
+    }
 }

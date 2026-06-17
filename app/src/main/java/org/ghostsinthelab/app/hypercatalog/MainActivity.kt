@@ -26,7 +26,6 @@ import androidx.activity.addCallback
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.platform.ComposeView
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
@@ -228,13 +227,12 @@ class MainActivity : AppCompatActivity(), CardView.Callbacks {
         }
     }
 
-    /** (Re)bind the Compose surface to the current stack — called on toggle and after a load. */
+    /** (Re)bind the Compose surface to the current stack — called on toggle and after a load.
+     *  `NativeCardScreen` applies the stack's own `MaterialTheme` (theme + accent), so no wrapper. */
     private fun bindNativeContent() {
         val s = stack ?: return
         composeView.setContent {
-            MaterialTheme {
-                NativeCardScreen(s) { effects, error -> onEffects(effects, error) }
-            }
+            NativeCardScreen(s) { effects, error -> onEffects(effects, error) }
         }
     }
 

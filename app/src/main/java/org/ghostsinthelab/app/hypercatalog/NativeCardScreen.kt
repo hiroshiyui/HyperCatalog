@@ -41,9 +41,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import uniffi.hyperffi.DispatchResult
 import uniffi.hyperffi.HyperStack
 import uniffi.hyperffi.ViewNode
@@ -263,13 +268,8 @@ private fun RenderNode(
         "field" -> {
             if (node.prop("locked") == "true") {
                 // A locked field is display text (label/title/readout) — render plain Text, not an
-                // input box. Honor its alignment and Material type role.
-                Text(
-                    text = node.prop("text"),
-                    style = typographyFor(node.prop("textRole")),
-                    textAlign = alignOf(node.prop("align")),
-                    modifier = modifier,
-                )
+                // input box, honoring its text styling so it matches the Canvas target.
+                Text(text = node.prop("text"), style = node.fieldTextStyle(), modifier = modifier)
             } else {
                 // An editable field is a real text input (holds local edit state).
                 var draft by remember(node.id) { mutableStateOf(node.prop("text")) }
@@ -279,7 +279,7 @@ private fun RenderNode(
                         draft = it
                         stack.setFieldText(node.id, it)
                     },
-                    textStyle = typographyFor(node.prop("textRole")),
+                    textStyle = node.fieldTextStyle(),
                     modifier = modifier,
                 )
             }
@@ -310,6 +310,34 @@ private fun alignOf(align: String): TextAlign = when (align) {
     "center" -> TextAlign.Center
     "right" -> TextAlign.End
     else -> TextAlign.Start
+}
+
+/**
+ * The [TextStyle] for a field, so native fields match the Canvas target: a Material `textRole`
+ * type-scale base (or the field's `size` when no role is set), the `font` family, the comma-list
+ * `textStyle` (bold/italic/underline), and `align`.
+ */
+@Composable
+private fun ViewNode.fieldTextStyle(): TextStyle {
+    val role = prop("textRole")
+    var s = typographyFor(role)
+    if (role.isEmpty()) {
+        prop("size").toFloatOrNull()?.takeIf { it > 0f }?.let { s = s.copy(fontSize = it.sp) }
+    }
+    val family = when (prop("font")) {
+        "sans-serif" -> FontFamily.SansSerif
+        "serif" -> FontFamily.Serif
+        "monospace" -> FontFamily.Monospace
+        else -> s.fontFamily
+    }
+    val flags = prop("textStyle")
+    return s.copy(
+        fontFamily = family,
+        fontWeight = if ("bold" in flags) FontWeight.Bold else s.fontWeight,
+        fontStyle = if ("italic" in flags) FontStyle.Italic else s.fontStyle,
+        textDecoration = if ("underline" in flags) TextDecoration.Underline else s.textDecoration,
+        textAlign = alignOf(prop("align")),
+    )
 }
 
 /** Map a legacy `ButtonStyle` to a Material role, preserving slice-1 appearance when no role is set. */

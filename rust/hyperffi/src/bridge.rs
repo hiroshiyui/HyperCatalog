@@ -1,6 +1,7 @@
 //! Typed UniFFI bridge (ADR-0012). A [`HyperStack`] wraps a `hypercore::Session` and exposes the
-//! whole host surface as typed calls, replacing the hand-written JSON-string JNI bridge. Object
-//! props are still passed as a JSON string (the inspector blob) pending their own typed shape.
+//! whole host surface as typed calls, replacing the hand-written JSON-string JNI bridge. Every
+//! payload is a typed record/enum mirroring a `hypercore` type — including object props
+//! ([`ObjectProps`]); no JSON crosses the boundary.
 //!
 //! Ids cross as `i32` (not `u32`) so the generated Kotlin uses `Int`, matching the host; `-1`
 //! means "none".
