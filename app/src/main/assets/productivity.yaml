@@ -1,308 +1,85 @@
 # Productivity stack — authored in YAML (ADR-0011).
+#
+# Dual-target authoring: every object keeps its absolute `rect` (the classic Canvas player uses it),
+# and each card adds a `layout` overlay so the native (Compose Material 3) target reflows into a real
+# Material form (ADR-0008/0014). Entry captions fold into the input's floating `label` in native; the
+# separate caption fields stay for classic but are deliberately left out of the native layout. Each
+# card's layout ends with a nav row that references the shared background buttons (ids 1–4), so the
+# nav stays visible in native (a card overlay otherwise shows only referenced objects).
 name: Productivity
 width: 360
 height: 540
+theme: dynamic
+accent_color: "#386A20"
 backgrounds:
 - id: 1
   name: Nav
   fields: []
   buttons:
-  - id: 4
-    name: Stacks
-    rect:
-      x: 10
-      y: 486
-      w: 80
-      h: 44
-    title: Stacks
-    style: rounded
-    text_size: 14
-    script: |-
-      on mouseUp
-        show stacks
-      end mouseUp
-  - id: 1
-    name: Home
-    rect:
-      x: 98
-      y: 486
-      w: 78
-      h: 44
-    title: Home
-    style: rounded
-    script: |-
-      on mouseUp
-        go first card
-      end mouseUp
-  - id: 2
-    name: Prev
-    rect:
-      x: 184
-      y: 486
-      w: 78
-      h: 44
-    title: < Prev
-    style: rounded
-    script: |-
-      on mouseUp
-        go previous card
-      end mouseUp
-  - id: 3
-    name: Next
-    rect:
-      x: 270
-      y: 486
-      w: 80
-      h: 44
-    title: Next >
-    style: rounded
-    script: |-
-      on mouseUp
-        go next card
-      end mouseUp
+  - { id: 4, name: Stacks, rect: { x: 10, y: 486, w: 80, h: 44 }, title: Stacks, style: rounded,
+      role: outlined, weight: 1, text_size: 14, script: "on mouseUp\n  show stacks\nend mouseUp" }
+  - { id: 1, name: Home, rect: { x: 98, y: 486, w: 78, h: 44 }, title: Home, style: rounded,
+      role: tonal, weight: 1, script: "on mouseUp\n  go first card\nend mouseUp" }
+  - { id: 2, name: Prev, rect: { x: 184, y: 486, w: 78, h: 44 }, title: "< Prev", style: rounded,
+      role: text, weight: 1, script: "on mouseUp\n  go previous card\nend mouseUp" }
+  - { id: 3, name: Next, rect: { x: 270, y: 486, w: 80, h: 44 }, title: "Next >", style: rounded,
+      role: text, weight: 1, script: "on mouseUp\n  go next card\nend mouseUp" }
   script: ''
 cards:
+# --- Home: a grid of section shortcuts ---
 - id: 1
   name: Home
   background_id: 1
   fields:
-  - id: 101
-    name: title
-    rect:
-      x: 20
-      y: 24
-      w: 320
-      h: 40
-    text: Productivity
-    locked: true
+  - { id: 101, name: title, rect: { x: 20, y: 24, w: 320, h: 40 }, text: Productivity, locked: true,
+      text_role: headlineSmall }
   buttons:
-  - id: 110
-    name: goTodo
-    rect:
-      x: 25
-      y: 90
-      w: 150
-      h: 56
-    title: To-Do
-    style: rounded
-    script: |-
-      on mouseUp
-        go card "To-Do"
-      end mouseUp
-  - id: 111
-    name: goCounters
-    rect:
-      x: 185
-      y: 90
-      w: 150
-      h: 56
-    title: Counters
-    style: rounded
-    script: |-
-      on mouseUp
-        go card "Counters"
-      end mouseUp
-  - id: 112
-    name: goTip
-    rect:
-      x: 25
-      y: 160
-      w: 150
-      h: 56
-    title: Tip Split
-    style: rounded
-    script: |-
-      on mouseUp
-        go card "Tip Split"
-      end mouseUp
-  - id: 113
-    name: goCalc
-    rect:
-      x: 185
-      y: 160
-      w: 150
-      h: 56
-    title: Calculator
-    style: rounded
-    script: |-
-      on mouseUp
-        go card "Calculator"
-      end mouseUp
-  - id: 114
-    name: goTemp
-    rect:
-      x: 25
-      y: 230
-      w: 150
-      h: 56
-    title: Temperature
-    style: rounded
-    script: |-
-      on mouseUp
-        go card "Temperature"
-      end mouseUp
-  - id: 115
-    name: goLength
-    rect:
-      x: 185
-      y: 230
-      w: 150
-      h: 56
-    title: Length
-    style: rounded
-    script: |-
-      on mouseUp
-        go card "Length"
-      end mouseUp
+  - { id: 110, name: goTodo, rect: { x: 25, y: 90, w: 150, h: 56 }, title: To-Do, style: rounded,
+      role: tonal, script: "on mouseUp\n  go card \"To-Do\"\nend mouseUp" }
+  - { id: 111, name: goCounters, rect: { x: 185, y: 90, w: 150, h: 56 }, title: Counters, style: rounded,
+      role: tonal, script: "on mouseUp\n  go card \"Counters\"\nend mouseUp" }
+  - { id: 112, name: goTip, rect: { x: 25, y: 160, w: 150, h: 56 }, title: Tip Split, style: rounded,
+      role: tonal, script: "on mouseUp\n  go card \"Tip Split\"\nend mouseUp" }
+  - { id: 113, name: goCalc, rect: { x: 185, y: 160, w: 150, h: 56 }, title: Calculator, style: rounded,
+      role: tonal, script: "on mouseUp\n  go card \"Calculator\"\nend mouseUp" }
+  - { id: 114, name: goTemp, rect: { x: 25, y: 230, w: 150, h: 56 }, title: Temperature, style: rounded,
+      role: tonal, script: "on mouseUp\n  go card \"Temperature\"\nend mouseUp" }
+  - { id: 115, name: goLength, rect: { x: 185, y: 230, w: 150, h: 56 }, title: Length, style: rounded,
+      role: tonal, script: "on mouseUp\n  go card \"Length\"\nend mouseUp" }
   script: ''
+  layout:
+    mode: column
+    padding: 16
+    children:
+    - 101
+    - { mode: grid, columns: 2, padding: 8, children: [110, 111, 112, 113, 114, 115] }
+    - { mode: row, padding: 4, children: [4, 1, 2, 3] }
+# --- To-Do: native checkboxes paired with task inputs ---
 - id: 2
   name: To-Do
   background_id: 1
   fields:
-  - id: 200
-    name: title
-    rect:
-      x: 20
-      y: 24
-      w: 320
-      h: 32
-    text: To-Do
-    locked: true
-  - id: 201
-    name: task1
-    rect:
-      x: 74
-      y: 70
-      w: 266
-      h: 44
-    text: ''
-  - id: 202
-    name: task2
-    rect:
-      x: 74
-      y: 134
-      w: 266
-      h: 44
-    text: ''
-  - id: 203
-    name: task3
-    rect:
-      x: 74
-      y: 198
-      w: 266
-      h: 44
-    text: ''
-  - id: 204
-    name: task4
-    rect:
-      x: 74
-      y: 262
-      w: 266
-      h: 44
-    text: ''
-  - id: 205
-    name: task5
-    rect:
-      x: 74
-      y: 326
-      w: 266
-      h: 44
-    text: ''
+  - { id: 200, name: title, rect: { x: 20, y: 24, w: 320, h: 32 }, text: To-Do, locked: true,
+      text_role: headlineSmall }
+  - { id: 201, name: task1, rect: { x: 74, y: 70, w: 266, h: 44 }, text: '', label: "Task 1", weight: 1 }
+  - { id: 202, name: task2, rect: { x: 74, y: 134, w: 266, h: 44 }, text: '', label: "Task 2", weight: 1 }
+  - { id: 203, name: task3, rect: { x: 74, y: 198, w: 266, h: 44 }, text: '', label: "Task 3", weight: 1 }
+  - { id: 204, name: task4, rect: { x: 74, y: 262, w: 266, h: 44 }, text: '', label: "Task 4", weight: 1 }
+  - { id: 205, name: task5, rect: { x: 74, y: 326, w: 266, h: 44 }, text: '', label: "Task 5", weight: 1 }
   buttons:
-  - id: 210
-    name: chk1
-    rect:
-      x: 20
-      y: 70
-      w: 44
-      h: 44
-    title: ○
-    style: rounded
-    script: |-
-      on mouseUp
-        if the title of me = "✓" then
-          set the title of me to "○"
-        else
-          set the title of me to "✓"
-        end if
-      end mouseUp
-  - id: 211
-    name: chk2
-    rect:
-      x: 20
-      y: 134
-      w: 44
-      h: 44
-    title: ○
-    style: rounded
-    script: |-
-      on mouseUp
-        if the title of me = "✓" then
-          set the title of me to "○"
-        else
-          set the title of me to "✓"
-        end if
-      end mouseUp
-  - id: 212
-    name: chk3
-    rect:
-      x: 20
-      y: 198
-      w: 44
-      h: 44
-    title: ○
-    style: rounded
-    script: |-
-      on mouseUp
-        if the title of me = "✓" then
-          set the title of me to "○"
-        else
-          set the title of me to "✓"
-        end if
-      end mouseUp
-  - id: 213
-    name: chk4
-    rect:
-      x: 20
-      y: 262
-      w: 44
-      h: 44
-    title: ○
-    style: rounded
-    script: |-
-      on mouseUp
-        if the title of me = "✓" then
-          set the title of me to "○"
-        else
-          set the title of me to "✓"
-        end if
-      end mouseUp
-  - id: 214
-    name: chk5
-    rect:
-      x: 20
-      y: 326
-      w: 44
-      h: 44
-    title: ○
-    style: rounded
-    script: |-
-      on mouseUp
-        if the title of me = "✓" then
-          set the title of me to "○"
-        else
-          set the title of me to "✓"
-        end if
-      end mouseUp
+  # `control: checkbox` auto-toggles `checked` before mouseUp in both targets (Canvas shows ☑/☐),
+  # so these need no script (ADR-0021). `checked: false` is required for the auto-toggle to fire.
+  - { id: 210, name: chk1, rect: { x: 20, y: 70, w: 44, h: 44 }, control: checkbox, checked: false }
+  - { id: 211, name: chk2, rect: { x: 20, y: 134, w: 44, h: 44 }, control: checkbox, checked: false }
+  - { id: 212, name: chk3, rect: { x: 20, y: 198, w: 44, h: 44 }, control: checkbox, checked: false }
+  - { id: 213, name: chk4, rect: { x: 20, y: 262, w: 44, h: 44 }, control: checkbox, checked: false }
+  - { id: 214, name: chk5, rect: { x: 20, y: 326, w: 44, h: 44 }, control: checkbox, checked: false }
   - id: 220
     name: clearAll
-    rect:
-      x: 20
-      y: 400
-      w: 320
-      h: 44
+    rect: { x: 20, y: 400, w: 320, h: 44 }
     title: Clear All
     style: rectangle
+    role: text
     script: |-
       on mouseUp
         put "" into field "task1"
@@ -310,342 +87,111 @@ cards:
         put "" into field "task3"
         put "" into field "task4"
         put "" into field "task5"
-        set the title of button "chk1" to "○"
-        set the title of button "chk2" to "○"
-        set the title of button "chk3" to "○"
-        set the title of button "chk4" to "○"
-        set the title of button "chk5" to "○"
+        set the checked of button "chk1" to false
+        set the checked of button "chk2" to false
+        set the checked of button "chk3" to false
+        set the checked of button "chk4" to false
+        set the checked of button "chk5" to false
       end mouseUp
   script: ''
+  layout:
+    mode: column
+    padding: 16
+    children:
+    - 200
+    - { mode: row, padding: 4, children: [210, 201] }
+    - { mode: row, padding: 4, children: [211, 202] }
+    - { mode: row, padding: 4, children: [212, 203] }
+    - { mode: row, padding: 4, children: [213, 204] }
+    - { mode: row, padding: 4, children: [214, 205] }
+    - 220
+    - { mode: row, padding: 4, children: [4, 1, 2, 3] }
+# --- Counters: label + readout, with a −1 / Reset / +1 row each ---
 - id: 3
   name: Counters
   background_id: 1
   fields:
-  - id: 300
-    name: title
-    rect:
-      x: 20
-      y: 24
-      w: 320
-      h: 32
-    text: Counters
-    locked: true
-  - id: 301
-    name: lbl1
-    rect:
-      x: 20
-      y: 70
-      w: 150
-      h: 36
-    text: Water
-    locked: true
-  - id: 311
-    name: cnt1
-    rect:
-      x: 180
-      y: 70
-      w: 160
-      h: 36
-    text: '0'
-    locked: true
-  - id: 302
-    name: lbl2
-    rect:
-      x: 20
-      y: 190
-      w: 150
-      h: 36
-    text: Pushups
-    locked: true
-  - id: 312
-    name: cnt2
-    rect:
-      x: 180
-      y: 190
-      w: 160
-      h: 36
-    text: '0'
-    locked: true
-  - id: 303
-    name: lbl3
-    rect:
-      x: 20
-      y: 310
-      w: 150
-      h: 36
-    text: Pages
-    locked: true
-  - id: 313
-    name: cnt3
-    rect:
-      x: 180
-      y: 310
-      w: 160
-      h: 36
-    text: '0'
-    locked: true
+  - { id: 300, name: title, rect: { x: 20, y: 24, w: 320, h: 32 }, text: Counters, locked: true,
+      text_role: headlineSmall }
+  - { id: 301, name: lbl1, rect: { x: 20, y: 70, w: 150, h: 36 }, text: Water, locked: true,
+      text_role: titleMedium, weight: 1 }
+  - { id: 311, name: cnt1, rect: { x: 180, y: 70, w: 160, h: 36 }, text: '0', locked: true,
+      text_role: titleMedium, text_align: right }
+  - { id: 302, name: lbl2, rect: { x: 20, y: 190, w: 150, h: 36 }, text: Pushups, locked: true,
+      text_role: titleMedium, weight: 1 }
+  - { id: 312, name: cnt2, rect: { x: 180, y: 190, w: 160, h: 36 }, text: '0', locked: true,
+      text_role: titleMedium, text_align: right }
+  - { id: 303, name: lbl3, rect: { x: 20, y: 310, w: 150, h: 36 }, text: Pages, locked: true,
+      text_role: titleMedium, weight: 1 }
+  - { id: 313, name: cnt3, rect: { x: 180, y: 310, w: 160, h: 36 }, text: '0', locked: true,
+      text_role: titleMedium, text_align: right }
   buttons:
-  - id: 320
-    name: minus1
-    rect:
-      x: 20
-      y: 110
-      w: 100
-      h: 40
-    title: −1
-    style: rounded
-    script: |-
-      on mouseUp
-        subtract 1 from field "cnt1"
-      end mouseUp
-  - id: 330
-    name: reset1
-    rect:
-      x: 130
-      y: 110
-      w: 100
-      h: 40
-    title: Reset
-    style: rectangle
-    script: |-
-      on mouseUp
-        put 0 into field "cnt1"
-      end mouseUp
-  - id: 340
-    name: plus1
-    rect:
-      x: 240
-      y: 110
-      w: 100
-      h: 40
-    title: '+1'
-    style: rounded
-    script: |-
-      on mouseUp
-        add 1 to field "cnt1"
-      end mouseUp
-  - id: 321
-    name: minus2
-    rect:
-      x: 20
-      y: 230
-      w: 100
-      h: 40
-    title: −1
-    style: rounded
-    script: |-
-      on mouseUp
-        subtract 1 from field "cnt2"
-      end mouseUp
-  - id: 331
-    name: reset2
-    rect:
-      x: 130
-      y: 230
-      w: 100
-      h: 40
-    title: Reset
-    style: rectangle
-    script: |-
-      on mouseUp
-        put 0 into field "cnt2"
-      end mouseUp
-  - id: 341
-    name: plus2
-    rect:
-      x: 240
-      y: 230
-      w: 100
-      h: 40
-    title: '+1'
-    style: rounded
-    script: |-
-      on mouseUp
-        add 1 to field "cnt2"
-      end mouseUp
-  - id: 322
-    name: minus3
-    rect:
-      x: 20
-      y: 350
-      w: 100
-      h: 40
-    title: −1
-    style: rounded
-    script: |-
-      on mouseUp
-        subtract 1 from field "cnt3"
-      end mouseUp
-  - id: 332
-    name: reset3
-    rect:
-      x: 130
-      y: 350
-      w: 100
-      h: 40
-    title: Reset
-    style: rectangle
-    script: |-
-      on mouseUp
-        put 0 into field "cnt3"
-      end mouseUp
-  - id: 342
-    name: plus3
-    rect:
-      x: 240
-      y: 350
-      w: 100
-      h: 40
-    title: '+1'
-    style: rounded
-    script: |-
-      on mouseUp
-        add 1 to field "cnt3"
-      end mouseUp
-  - id: 350
-    name: resetAll
-    rect:
-      x: 20
-      y: 400
-      w: 320
-      h: 40
-    title: Reset All
-    style: rectangle
-    script: |-
-      on mouseUp
-        put 0 into field "cnt1"
-        put 0 into field "cnt2"
-        put 0 into field "cnt3"
-      end mouseUp
+  - { id: 320, name: minus1, rect: { x: 20, y: 110, w: 100, h: 40 }, title: −1, style: rounded,
+      role: tonal, weight: 1, script: "on mouseUp\n  subtract 1 from field \"cnt1\"\nend mouseUp" }
+  - { id: 330, name: reset1, rect: { x: 130, y: 110, w: 100, h: 40 }, title: Reset, style: rectangle,
+      role: text, weight: 1, script: "on mouseUp\n  put 0 into field \"cnt1\"\nend mouseUp" }
+  - { id: 340, name: plus1, rect: { x: 240, y: 110, w: 100, h: 40 }, title: '+1', style: rounded,
+      role: tonal, weight: 1, script: "on mouseUp\n  add 1 to field \"cnt1\"\nend mouseUp" }
+  - { id: 321, name: minus2, rect: { x: 20, y: 230, w: 100, h: 40 }, title: −1, style: rounded,
+      role: tonal, weight: 1, script: "on mouseUp\n  subtract 1 from field \"cnt2\"\nend mouseUp" }
+  - { id: 331, name: reset2, rect: { x: 130, y: 230, w: 100, h: 40 }, title: Reset, style: rectangle,
+      role: text, weight: 1, script: "on mouseUp\n  put 0 into field \"cnt2\"\nend mouseUp" }
+  - { id: 341, name: plus2, rect: { x: 240, y: 230, w: 100, h: 40 }, title: '+1', style: rounded,
+      role: tonal, weight: 1, script: "on mouseUp\n  add 1 to field \"cnt2\"\nend mouseUp" }
+  - { id: 322, name: minus3, rect: { x: 20, y: 350, w: 100, h: 40 }, title: −1, style: rounded,
+      role: tonal, weight: 1, script: "on mouseUp\n  subtract 1 from field \"cnt3\"\nend mouseUp" }
+  - { id: 332, name: reset3, rect: { x: 130, y: 350, w: 100, h: 40 }, title: Reset, style: rectangle,
+      role: text, weight: 1, script: "on mouseUp\n  put 0 into field \"cnt3\"\nend mouseUp" }
+  - { id: 342, name: plus3, rect: { x: 240, y: 350, w: 100, h: 40 }, title: '+1', style: rounded,
+      role: tonal, weight: 1, script: "on mouseUp\n  add 1 to field \"cnt3\"\nend mouseUp" }
+  - { id: 350, name: resetAll, rect: { x: 20, y: 400, w: 320, h: 40 }, title: Reset All, style: rectangle,
+      role: text, script: "on mouseUp\n  put 0 into field \"cnt1\"\n  put 0 into field \"cnt2\"\n  put 0 into field \"cnt3\"\nend mouseUp" }
   script: ''
+  layout:
+    mode: column
+    padding: 16
+    children:
+    - 300
+    - { mode: row, padding: 4, children: [301, 311] }
+    - { mode: row, padding: 4, children: [320, 330, 340] }
+    - { mode: row, padding: 4, children: [302, 312] }
+    - { mode: row, padding: 4, children: [321, 331, 341] }
+    - { mode: row, padding: 4, children: [303, 313] }
+    - { mode: row, padding: 4, children: [322, 332, 342] }
+    - 350
+    - { mode: row, padding: 4, children: [4, 1, 2, 3] }
+# --- Tip Split: labelled inputs + Compute + readout rows ---
 - id: 4
   name: Tip Split
   background_id: 1
   fields:
-  - id: 400
-    name: title
-    rect:
-      x: 20
-      y: 24
-      w: 320
-      h: 32
-    text: Tip Split
-    locked: true
-  - id: 401
-    name: capBill
-    rect:
-      x: 20
-      y: 70
-      w: 140
-      h: 36
-    text: Bill
-    locked: true
-  - id: 411
-    name: bill
-    rect:
-      x: 170
-      y: 70
-      w: 170
-      h: 36
-    text: '0'
-  - id: 402
-    name: capTipPct
-    rect:
-      x: 20
-      y: 116
-      w: 140
-      h: 36
-    text: Tip %
-    locked: true
-  - id: 412
-    name: tippct
-    rect:
-      x: 170
-      y: 116
-      w: 170
-      h: 36
-    text: '15'
-  - id: 403
-    name: capPeople
-    rect:
-      x: 20
-      y: 162
-      w: 140
-      h: 36
-    text: People
-    locked: true
-  - id: 413
-    name: people
-    rect:
-      x: 170
-      y: 162
-      w: 170
-      h: 36
-    text: '1'
-  - id: 421
-    name: capTip
-    rect:
-      x: 20
-      y: 280
-      w: 140
-      h: 36
-    text: Tip
-    locked: true
-  - id: 431
-    name: tip
-    rect:
-      x: 170
-      y: 280
-      w: 170
-      h: 36
-    text: '0'
-    locked: true
-  - id: 422
-    name: capTotal
-    rect:
-      x: 20
-      y: 320
-      w: 140
-      h: 36
-    text: Total
-    locked: true
-  - id: 432
-    name: total
-    rect:
-      x: 170
-      y: 320
-      w: 170
-      h: 36
-    text: '0'
-    locked: true
-  - id: 423
-    name: capEach
-    rect:
-      x: 20
-      y: 360
-      w: 140
-      h: 36
-    text: Per person
-    locked: true
-  - id: 433
-    name: each
-    rect:
-      x: 170
-      y: 360
-      w: 170
-      h: 36
-    text: '0'
-    locked: true
+  - { id: 400, name: title, rect: { x: 20, y: 24, w: 320, h: 32 }, text: Tip Split, locked: true,
+      text_role: headlineSmall }
+  - { id: 401, name: capBill, rect: { x: 20, y: 70, w: 140, h: 36 }, text: Bill, locked: true }
+  - { id: 411, name: bill, rect: { x: 170, y: 70, w: 170, h: 36 }, text: '0', label: "Bill" }
+  - { id: 402, name: capTipPct, rect: { x: 20, y: 116, w: 140, h: 36 }, text: Tip %, locked: true }
+  - { id: 412, name: tippct, rect: { x: 170, y: 116, w: 170, h: 36 }, text: '15', label: "Tip %" }
+  - { id: 403, name: capPeople, rect: { x: 20, y: 162, w: 140, h: 36 }, text: People, locked: true }
+  - { id: 413, name: people, rect: { x: 170, y: 162, w: 170, h: 36 }, text: '1', label: "People" }
+  - { id: 421, name: capTip, rect: { x: 20, y: 280, w: 140, h: 36 }, text: Tip, locked: true,
+      text_role: titleMedium, weight: 1 }
+  - { id: 431, name: tip, rect: { x: 170, y: 280, w: 170, h: 36 }, text: '0', locked: true,
+      text_role: titleMedium, text_align: right }
+  - { id: 422, name: capTotal, rect: { x: 20, y: 320, w: 140, h: 36 }, text: Total, locked: true,
+      text_role: titleMedium, weight: 1 }
+  - { id: 432, name: total, rect: { x: 170, y: 320, w: 170, h: 36 }, text: '0', locked: true,
+      text_role: titleMedium, text_align: right }
+  - { id: 423, name: capEach, rect: { x: 20, y: 360, w: 140, h: 36 }, text: Per person, locked: true,
+      text_role: titleMedium, weight: 1 }
+  - { id: 433, name: each, rect: { x: 170, y: 360, w: 170, h: 36 }, text: '0', locked: true,
+      text_role: titleMedium, text_align: right }
   buttons:
   - id: 440
     name: compute
-    rect:
-      x: 20
-      y: 216
-      w: 320
-      h: 44
+    rect: { x: 20, y: 216, w: 320, h: 44 }
     title: Compute
     style: rounded
+    role: filled
     script: |-
       on mouseUp
         put trunc(field "bill" * field "tippct" / 100 * 100) / 100 into field "tip"
@@ -653,345 +199,126 @@ cards:
         put trunc(field "total" / field "people" * 100) / 100 into field "each"
       end mouseUp
   script: ''
+  layout:
+    mode: column
+    padding: 16
+    children:
+    - 400
+    - 411
+    - 412
+    - 413
+    - 440
+    - { mode: row, padding: 4, children: [421, 431] }
+    - { mode: row, padding: 4, children: [422, 432] }
+    - { mode: row, padding: 4, children: [423, 433] }
+    - { mode: row, padding: 4, children: [4, 1, 2, 3] }
+# --- Calculator: two labelled inputs, an op row, a result readout ---
 - id: 5
   name: Calculator
   background_id: 1
   fields:
-  - id: 500
-    name: title
-    rect:
-      x: 20
-      y: 24
-      w: 320
-      h: 32
-    text: Calculator
-    locked: true
-  - id: 501
-    name: capA
-    rect:
-      x: 20
-      y: 70
-      w: 150
-      h: 22
-    text: A
-    locked: true
-  - id: 511
-    name: a
-    rect:
-      x: 20
-      y: 94
-      w: 150
-      h: 44
-    text: '0'
-  - id: 502
-    name: capB
-    rect:
-      x: 190
-      y: 70
-      w: 150
-      h: 22
-    text: B
-    locked: true
-  - id: 512
-    name: b
-    rect:
-      x: 190
-      y: 94
-      w: 150
-      h: 44
-    text: '0'
-  - id: 503
-    name: capR
-    rect:
-      x: 20
-      y: 240
-      w: 320
-      h: 22
-    text: Result
-    locked: true
-  - id: 513
-    name: result
-    rect:
-      x: 20
-      y: 266
-      w: 320
-      h: 50
-    text: '0'
-    locked: true
+  - { id: 500, name: title, rect: { x: 20, y: 24, w: 320, h: 32 }, text: Calculator, locked: true,
+      text_role: headlineSmall }
+  - { id: 501, name: capA, rect: { x: 20, y: 70, w: 150, h: 22 }, text: A, locked: true }
+  - { id: 511, name: a, rect: { x: 20, y: 94, w: 150, h: 44 }, text: '0', label: "A", weight: 1 }
+  - { id: 502, name: capB, rect: { x: 190, y: 70, w: 150, h: 22 }, text: B, locked: true }
+  - { id: 512, name: b, rect: { x: 190, y: 94, w: 150, h: 44 }, text: '0', label: "B", weight: 1 }
+  - { id: 503, name: capR, rect: { x: 20, y: 240, w: 320, h: 22 }, text: Result, locked: true,
+      text_role: labelLarge }
+  - { id: 513, name: result, rect: { x: 20, y: 266, w: 320, h: 50 }, text: '0', locked: true,
+      text_role: headlineSmall, text_align: center }
   buttons:
-  - id: 520
-    name: opAdd
-    rect:
-      x: 18
-      y: 160
-      w: 76
-      h: 54
-    title: +
-    style: rounded
-    script: |-
-      on mouseUp
-        put field "a" + field "b" into field "result"
-      end mouseUp
-  - id: 521
-    name: opSub
-    rect:
-      x: 102
-      y: 160
-      w: 76
-      h: 54
-    title: −
-    style: rounded
-    script: |-
-      on mouseUp
-        put field "a" - field "b" into field "result"
-      end mouseUp
-  - id: 522
-    name: opMul
-    rect:
-      x: 186
-      y: 160
-      w: 76
-      h: 54
-    title: ×
-    style: rounded
-    script: |-
-      on mouseUp
-        put field "a" * field "b" into field "result"
-      end mouseUp
-  - id: 523
-    name: opDiv
-    rect:
-      x: 270
-      y: 160
-      w: 76
-      h: 54
-    title: ÷
-    style: rounded
-    script: |-
-      on mouseUp
-        put trunc(field "a" / field "b" * 10000) / 10000 into field "result"
-      end mouseUp
+  - { id: 520, name: opAdd, rect: { x: 18, y: 160, w: 76, h: 54 }, title: +, style: rounded,
+      role: tonal, weight: 1, script: "on mouseUp\n  put field \"a\" + field \"b\" into field \"result\"\nend mouseUp" }
+  - { id: 521, name: opSub, rect: { x: 102, y: 160, w: 76, h: 54 }, title: −, style: rounded,
+      role: tonal, weight: 1, script: "on mouseUp\n  put field \"a\" - field \"b\" into field \"result\"\nend mouseUp" }
+  - { id: 522, name: opMul, rect: { x: 186, y: 160, w: 76, h: 54 }, title: ×, style: rounded,
+      role: tonal, weight: 1, script: "on mouseUp\n  put field \"a\" * field \"b\" into field \"result\"\nend mouseUp" }
+  - { id: 523, name: opDiv, rect: { x: 270, y: 160, w: 76, h: 54 }, title: ÷, style: rounded,
+      role: tonal, weight: 1, script: "on mouseUp\n  put trunc(field \"a\" / field \"b\" * 10000) / 10000 into field \"result\"\nend mouseUp" }
   script: ''
+  layout:
+    mode: column
+    padding: 16
+    children:
+    - 500
+    - { mode: row, padding: 8, children: [511, 512] }
+    - { mode: row, padding: 8, children: [520, 521, 522, 523] }
+    - 503
+    - 513
+    - { mode: row, padding: 4, children: [4, 1, 2, 3] }
+# --- Temperature: two conversion sections, each input + button + readout ---
 - id: 6
   name: Temperature
   background_id: 1
   fields:
-  - id: 600
-    name: title
-    rect:
-      x: 20
-      y: 24
-      w: 320
-      h: 32
-    text: Temperature
-    locked: true
-  - id: 601
-    name: capCF
-    rect:
-      x: 20
-      y: 70
-      w: 320
-      h: 24
-    text: Celsius → Fahrenheit
-    locked: true
-  - id: 611
-    name: celsius
-    rect:
-      x: 20
-      y: 100
-      w: 200
-      h: 44
-    text: '0'
-  - id: 602
-    name: capFout
-    rect:
-      x: 20
-      y: 152
-      w: 200
-      h: 30
-    text: 'Fahrenheit:'
-    locked: true
-  - id: 612
-    name: fahr
-    rect:
-      x: 230
-      y: 152
-      w: 110
-      h: 30
-    text: '32'
-    locked: true
-  - id: 603
-    name: capFC
-    rect:
-      x: 20
-      y: 230
-      w: 320
-      h: 24
-    text: Fahrenheit → Celsius
-    locked: true
-  - id: 613
-    name: fahr2
-    rect:
-      x: 20
-      y: 260
-      w: 200
-      h: 44
-    text: '32'
-  - id: 604
-    name: capCout
-    rect:
-      x: 20
-      y: 312
-      w: 200
-      h: 30
-    text: 'Celsius:'
-    locked: true
-  - id: 614
-    name: cels2
-    rect:
-      x: 230
-      y: 312
-      w: 110
-      h: 30
-    text: '0'
-    locked: true
+  - { id: 600, name: title, rect: { x: 20, y: 24, w: 320, h: 32 }, text: Temperature, locked: true,
+      text_role: headlineSmall }
+  - { id: 601, name: capCF, rect: { x: 20, y: 70, w: 320, h: 24 }, text: Celsius → Fahrenheit,
+      locked: true, text_role: titleMedium }
+  - { id: 611, name: celsius, rect: { x: 20, y: 100, w: 200, h: 44 }, text: '0', label: "Celsius", weight: 1 }
+  - { id: 602, name: capFout, rect: { x: 20, y: 152, w: 200, h: 30 }, text: 'Fahrenheit:', locked: true, weight: 1 }
+  - { id: 612, name: fahr, rect: { x: 230, y: 152, w: 110, h: 30 }, text: '32', locked: true,
+      text_role: titleMedium, text_align: right }
+  - { id: 603, name: capFC, rect: { x: 20, y: 230, w: 320, h: 24 }, text: Fahrenheit → Celsius,
+      locked: true, text_role: titleMedium }
+  - { id: 613, name: fahr2, rect: { x: 20, y: 260, w: 200, h: 44 }, text: '32', label: "Fahrenheit", weight: 1 }
+  - { id: 604, name: capCout, rect: { x: 20, y: 312, w: 200, h: 30 }, text: 'Celsius:', locked: true, weight: 1 }
+  - { id: 614, name: cels2, rect: { x: 230, y: 312, w: 110, h: 30 }, text: '0', locked: true,
+      text_role: titleMedium, text_align: right }
   buttons:
-  - id: 620
-    name: toF
-    rect:
-      x: 230
-      y: 100
-      w: 110
-      h: 44
-    title: → °F
-    style: rounded
-    script: |-
-      on mouseUp
-        put trunc((field "celsius" * 9 / 5 + 32) * 10) / 10 into field "fahr"
-      end mouseUp
-  - id: 621
-    name: toC
-    rect:
-      x: 230
-      y: 260
-      w: 110
-      h: 44
-    title: → °C
-    style: rounded
-    script: |-
-      on mouseUp
-        put trunc((field "fahr2" - 32) * 5 / 9 * 10) / 10 into field "cels2"
-      end mouseUp
+  - { id: 620, name: toF, rect: { x: 230, y: 100, w: 110, h: 44 }, title: → °F, style: rounded,
+      role: filled, script: "on mouseUp\n  put trunc((field \"celsius\" * 9 / 5 + 32) * 10) / 10 into field \"fahr\"\nend mouseUp" }
+  - { id: 621, name: toC, rect: { x: 230, y: 260, w: 110, h: 44 }, title: → °C, style: rounded,
+      role: filled, script: "on mouseUp\n  put trunc((field \"fahr2\" - 32) * 5 / 9 * 10) / 10 into field \"cels2\"\nend mouseUp" }
   script: ''
+  layout:
+    mode: column
+    padding: 16
+    children:
+    - 600
+    - 601
+    - { mode: row, padding: 8, children: [611, 620] }
+    - { mode: row, padding: 4, children: [602, 612] }
+    - 603
+    - { mode: row, padding: 8, children: [613, 621] }
+    - { mode: row, padding: 4, children: [604, 614] }
+    - { mode: row, padding: 4, children: [4, 1, 2, 3] }
+# --- Length: same two-section conversion shape as Temperature ---
 - id: 7
   name: Length
   background_id: 1
   fields:
-  - id: 700
-    name: title
-    rect:
-      x: 20
-      y: 24
-      w: 320
-      h: 32
-    text: Length
-    locked: true
-  - id: 701
-    name: capCmIn
-    rect:
-      x: 20
-      y: 70
-      w: 320
-      h: 24
-    text: Centimeters → Inches
-    locked: true
-  - id: 711
-    name: cm
-    rect:
-      x: 20
-      y: 100
-      w: 200
-      h: 44
-    text: '0'
-  - id: 702
-    name: capInOut
-    rect:
-      x: 20
-      y: 152
-      w: 200
-      h: 30
-    text: 'Inches:'
-    locked: true
-  - id: 712
-    name: inch
-    rect:
-      x: 230
-      y: 152
-      w: 110
-      h: 30
-    text: '0'
-    locked: true
-  - id: 703
-    name: capInCm
-    rect:
-      x: 20
-      y: 230
-      w: 320
-      h: 24
-    text: Inches → Centimeters
-    locked: true
-  - id: 713
-    name: inch2
-    rect:
-      x: 20
-      y: 260
-      w: 200
-      h: 44
-    text: '0'
-  - id: 704
-    name: capCmOut
-    rect:
-      x: 20
-      y: 312
-      w: 200
-      h: 30
-    text: 'Centimeters:'
-    locked: true
-  - id: 714
-    name: cmout
-    rect:
-      x: 230
-      y: 312
-      w: 110
-      h: 30
-    text: '0'
-    locked: true
+  - { id: 700, name: title, rect: { x: 20, y: 24, w: 320, h: 32 }, text: Length, locked: true,
+      text_role: headlineSmall }
+  - { id: 701, name: capCmIn, rect: { x: 20, y: 70, w: 320, h: 24 }, text: Centimeters → Inches,
+      locked: true, text_role: titleMedium }
+  - { id: 711, name: cm, rect: { x: 20, y: 100, w: 200, h: 44 }, text: '0', label: "Centimeters", weight: 1 }
+  - { id: 702, name: capInOut, rect: { x: 20, y: 152, w: 200, h: 30 }, text: 'Inches:', locked: true, weight: 1 }
+  - { id: 712, name: inch, rect: { x: 230, y: 152, w: 110, h: 30 }, text: '0', locked: true,
+      text_role: titleMedium, text_align: right }
+  - { id: 703, name: capInCm, rect: { x: 20, y: 230, w: 320, h: 24 }, text: Inches → Centimeters,
+      locked: true, text_role: titleMedium }
+  - { id: 713, name: inch2, rect: { x: 20, y: 260, w: 200, h: 44 }, text: '0', label: "Inches", weight: 1 }
+  - { id: 704, name: capCmOut, rect: { x: 20, y: 312, w: 200, h: 30 }, text: 'Centimeters:', locked: true, weight: 1 }
+  - { id: 714, name: cmout, rect: { x: 230, y: 312, w: 110, h: 30 }, text: '0', locked: true,
+      text_role: titleMedium, text_align: right }
   buttons:
-  - id: 720
-    name: toInch
-    rect:
-      x: 230
-      y: 100
-      w: 110
-      h: 44
-    title: → in
-    style: rounded
-    script: |-
-      on mouseUp
-        put trunc(field "cm" / 2.54 * 100) / 100 into field "inch"
-      end mouseUp
-  - id: 721
-    name: toCm
-    rect:
-      x: 230
-      y: 260
-      w: 110
-      h: 44
-    title: → cm
-    style: rounded
-    script: |-
-      on mouseUp
-        put trunc(field "inch2" * 2.54 * 100) / 100 into field "cmout"
-      end mouseUp
+  - { id: 720, name: toInch, rect: { x: 230, y: 100, w: 110, h: 44 }, title: → in, style: rounded,
+      role: filled, script: "on mouseUp\n  put trunc(field \"cm\" / 2.54 * 100) / 100 into field \"inch\"\nend mouseUp" }
+  - { id: 721, name: toCm, rect: { x: 230, y: 260, w: 110, h: 44 }, title: → cm, style: rounded,
+      role: filled, script: "on mouseUp\n  put trunc(field \"inch2\" * 2.54 * 100) / 100 into field \"cmout\"\nend mouseUp" }
   script: ''
+  layout:
+    mode: column
+    padding: 16
+    children:
+    - 700
+    - 701
+    - { mode: row, padding: 8, children: [711, 720] }
+    - { mode: row, padding: 4, children: [702, 712] }
+    - 703
+    - { mode: row, padding: 8, children: [713, 721] }
+    - { mode: row, padding: 4, children: [704, 714] }
+    - { mode: row, padding: 4, children: [4, 1, 2, 3] }
 script: ''
