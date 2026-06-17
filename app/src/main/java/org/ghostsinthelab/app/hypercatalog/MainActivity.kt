@@ -1,7 +1,9 @@
 package org.ghostsinthelab.app.hypercatalog
 
+import android.content.Intent
 import android.content.res.Configuration
 import android.graphics.Color
+import android.net.Uri
 import android.graphics.RectF
 import android.media.AudioManager
 import android.media.ToneGenerator
@@ -409,8 +411,35 @@ class MainActivity : AppCompatActivity(), CardView.Callbacks {
                 "message" -> Toast.makeText(this, e.text, Toast.LENGTH_SHORT).show()
                 "gostack" -> goToStackByName(e.text) // `go to stack "Name"`
                 "showstacks" -> showStackPicker() // `show stacks`
+                "openurl" -> openUrl(e.text) // `open url "https://…"`
+                "share" -> shareText(e.text) // `share "…"`
+                "toast" -> Toast.makeText(this, e.text, Toast.LENGTH_SHORT).show() // `toast "…"`
             }
         }
+    }
+
+    /** `open url "…"` — hand the URI to whatever app claims it (browser, dialer, maps, …). */
+    private fun openUrl(url: String) {
+        val uri = runCatching { Uri.parse(url.trim()) }.getOrNull()
+        if (uri == null || uri.scheme.isNullOrBlank()) {
+            Toast.makeText(this, "Bad url: $url", Toast.LENGTH_LONG).show()
+            return
+        }
+        val intent = Intent(Intent.ACTION_VIEW, uri)
+        if (intent.resolveActivity(packageManager) != null) {
+            startActivity(intent)
+        } else {
+            Toast.makeText(this, "Nothing handles: $url", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    /** `share "…"` — the system share sheet with plain text. */
+    private fun shareText(text: String) {
+        val send = Intent(Intent.ACTION_SEND).apply {
+            type = "text/plain"
+            putExtra(Intent.EXTRA_TEXT, text)
+        }
+        startActivity(Intent.createChooser(send, null))
     }
 
     override fun onEditField(fieldId: Int, viewRect: RectF, currentText: String) {

@@ -126,10 +126,13 @@ Compose, scriptable via interp arms): **`checkbox`** / **`radio`** (boolean), **
 scheme so non-`dynamic` light/dark themes derive secondary/tertiary/containers from the stack's
 `accentColor` ([ADR-0022](adr/0022-accessibility-and-seeded-theme.md)). Focus order deferred.
 
-### Phase 8 — Platform escape hatches
+### Phase 8 — Platform escape hatches *(done)*
 
-Host-realized `HostEffect`s with light parser sugar: `open url`, `share`, `toast`, `send intent`, and
-local prefs (`get/set the pref "key"`). No async; quick wins that make stacks feel like real apps.
+Host-realized fire-and-forget `HostEffect`s with light parser sugar: **`open url`**, **`share`**, and
+**`toast`** ([ADR-0023](adr/0023-platform-escape-hatches.md)) — reusing the `HostEffect` channel, so
+both render targets surface them. `send intent` (with a returned result) and local prefs
+(`get/set the pref "key"`) need read-state back into the script and are **deferred to Phase 9** (the
+async/typed-args foundation). Demoed in `assets/layout_demo.yaml` (Website / Share / Toast row).
 
 ### Phase 9 — Language & async foundation *(the enabler)*
 
@@ -179,3 +182,4 @@ Rust-native — see [ADR-0001](adr/0001-rust-native-hypertalk.md).
 - [ADR-0020 — Safe-area insets (constraint solver deferred)](adr/0020-safe-area-insets-and-constraints.md)
 - [ADR-0021 — Native component palette](adr/0021-component-palette.md)
 - [ADR-0022 — Accessibility & seeded color scheme](adr/0022-accessibility-and-seeded-theme.md)
+- [ADR-0023 — Platform escape hatches (`open url`/`share`/`toast`)](adr/0023-platform-escape-hatches.md)

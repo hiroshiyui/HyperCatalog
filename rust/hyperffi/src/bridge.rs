@@ -179,6 +179,9 @@ pub enum HostEffect {
     Beep,
     GoStack { name: String },
     ShowStacks,
+    OpenUrl { url: String },
+    Share { text: String },
+    Toast { text: String },
 }
 
 impl From<hypercore::HostEffect> for HostEffect {
@@ -189,6 +192,9 @@ impl From<hypercore::HostEffect> for HostEffect {
             hypercore::HostEffect::Beep => HostEffect::Beep,
             hypercore::HostEffect::GoStack(name) => HostEffect::GoStack { name },
             hypercore::HostEffect::ShowStacks => HostEffect::ShowStacks,
+            hypercore::HostEffect::OpenUrl(url) => HostEffect::OpenUrl { url },
+            hypercore::HostEffect::Share(text) => HostEffect::Share { text },
+            hypercore::HostEffect::Toast(text) => HostEffect::Toast { text },
         }
     }
 }

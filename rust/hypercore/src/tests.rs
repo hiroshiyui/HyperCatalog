@@ -1071,6 +1071,46 @@ fn go_stack_without_to_parses() {
 }
 
 #[test]
+fn open_url_emits_host_effect() {
+    // `open url "…"` is host-realized (the core can't launch an Intent); `open url` is sugar
+    // for `Stmt::Send("openurl", …)`.
+    let mut s = Session::load_from_json(&sample_json()).unwrap();
+    assert!(s.set_object_script(
+        20,
+        "on mouseUp\n  open url \"https://example.com\"\nend mouseUp"
+    ));
+    let r = s.dispatch_touch(20.0, 120.0, "up");
+    assert!(r.error.is_none(), "error: {:?}", r.error);
+    assert_eq!(
+        r.host_cmds,
+        vec![HostEffect::OpenUrl("https://example.com".to_string())]
+    );
+}
+
+#[test]
+fn share_emits_host_effect() {
+    // `share "…"` opens the system share sheet — a host effect with the evaluated text.
+    let mut s = Session::load_from_json(&sample_json()).unwrap();
+    assert!(s.set_object_script(
+        20,
+        "on mouseUp\n  put \"hi\" into msg\n  share msg & \" there\"\nend mouseUp"
+    ));
+    let r = s.dispatch_touch(20.0, 120.0, "up");
+    assert!(r.error.is_none(), "error: {:?}", r.error);
+    assert_eq!(r.host_cmds, vec![HostEffect::Share("hi there".to_string())]);
+}
+
+#[test]
+fn toast_emits_host_effect() {
+    // `toast "…"` is a fire-and-forget host effect.
+    let mut s = Session::load_from_json(&sample_json()).unwrap();
+    assert!(s.set_object_script(20, "on mouseUp\n  toast \"saved\"\nend mouseUp"));
+    let r = s.dispatch_touch(20.0, 120.0, "up");
+    assert!(r.error.is_none(), "error: {:?}", r.error);
+    assert_eq!(r.host_cmds, vec![HostEffect::Toast("saved".to_string())]);
+}
+
+#[test]
 fn background_button_script_runs() {
     // A nav button living on the shared background must have its own handler run.
     let json = r#"{

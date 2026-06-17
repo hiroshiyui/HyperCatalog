@@ -26,6 +26,12 @@ pub enum HostCmd {
     GoStack(String),
     /// `show stacks` — the host opens its stack picker.
     ShowStacks,
+    /// `open url "…"` — the host opens the URL in a browser/viewer (ADR-0023).
+    OpenUrl(String),
+    /// `share "…"` — the host opens the system share sheet (ADR-0023).
+    Share(String),
+    /// `toast "…"` — the host shows a brief toast (ADR-0023).
+    Toast(String),
 }
 
 /// Identifies the object whose script is currently running (`me`).
@@ -246,9 +252,24 @@ impl<'s> Runtime<'s> {
         &mut self,
         name: &str,
         args: &[Expr],
-        _env: &mut Env,
-        _me: Me,
+        env: &mut Env,
+        me: Me,
     ) -> Result<Flow, String> {
+        // Platform escape hatches (ADR-0023): a command that takes one string arg → a host effect.
+        let host_effect = match name {
+            "openurl" => Some(HostCmd::OpenUrl as fn(String) -> HostCmd),
+            "share" => Some(HostCmd::Share as fn(String) -> HostCmd),
+            "toast" => Some(HostCmd::Toast as fn(String) -> HostCmd),
+            _ => None,
+        };
+        if let Some(make) = host_effect {
+            let text = match args.first() {
+                Some(e) => self.eval(e, env, me)?.as_text(),
+                None => String::new(),
+            };
+            self.host.push(make(text));
+            return Ok(Flow::Next);
+        }
         match name {
             "exit" => {
                 if let Some(Expr::Var(w)) = args.first()

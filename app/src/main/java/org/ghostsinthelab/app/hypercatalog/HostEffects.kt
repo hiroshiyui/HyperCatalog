@@ -13,5 +13,8 @@ fun hostEffectsOf(cmds: List<uniffi.hyperffi.HostEffect>): List<HostEffect> = cm
         is uniffi.hyperffi.HostEffect.Beep -> HostEffect("beep", "")
         is uniffi.hyperffi.HostEffect.GoStack -> HostEffect("gostack", e.name)
         is uniffi.hyperffi.HostEffect.ShowStacks -> HostEffect("showstacks", "")
+        is uniffi.hyperffi.HostEffect.OpenUrl -> HostEffect("openurl", e.url)
+        is uniffi.hyperffi.HostEffect.Share -> HostEffect("share", e.text)
+        is uniffi.hyperffi.HostEffect.Toast -> HostEffect("toast", e.text)
     }
 }

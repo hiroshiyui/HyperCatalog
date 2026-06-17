@@ -184,6 +184,12 @@ impl Parser {
             "add" | "subtract" | "multiply" | "divide" => self.parse_arith(&w)?,
             "if" => self.parse_if()?,
             "repeat" => self.parse_repeat()?,
+            // `open url <expr>` (ADR-0023) — consume the `url` keyword, then the address expr.
+            "open" => {
+                self.advance(); // 'open'
+                self.eat_kw("url");
+                Stmt::Send("openurl".to_string(), vec![self.parse_expr()?])
+            }
             _ => self.parse_send()?,
         };
         self.end_statement();

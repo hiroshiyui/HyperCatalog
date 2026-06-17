@@ -49,6 +49,13 @@ cards:
       - { id: 50, name: vol, rect: { x: 20, y: 480, w: 320, h: 40 }, title: "Volume", control: slider, value: 0.4,
           script: "on mouseUp\n  set the value of button \"meter\" to the value of me\nend mouseUp" }
       - { id: 51, name: meter, rect: { x: 20, y: 524, w: 320, h: 20 }, title: "Level", control: progress, value: 0.4 }
+      # Platform escape hatches (ADR-0023): host-realized side effects.
+      - { id: 70, name: web, rect: { x: 20, y: 548, w: 100, h: 44 }, title: "Website", role: outlined,
+          script: "on mouseUp\n  open url \"https://example.com\"\nend mouseUp" }
+      - { id: 71, name: share, rect: { x: 130, y: 548, w: 100, h: 44 }, title: "Share", role: tonal,
+          script: "on mouseUp\n  share \"Made with HyperCatalog\"\nend mouseUp" }
+      - { id: 72, name: ping, rect: { x: 240, y: 548, w: 100, h: 44 }, title: "Toast", role: text,
+          script: "on mouseUp\n  toast \"hello from a stack\"\nend mouseUp" }
     layout:
       mode: column
       padding: 16
@@ -61,4 +68,5 @@ cards:
         - 60
         - 50
         - 51
+        - { mode: row, padding: 4, children: [70, 71, 72] }
         - 2

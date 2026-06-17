@@ -142,6 +142,12 @@ pub enum HostEffect {
     GoStack(String),
     /// `show stacks` — the host opens its stack picker (serialized as `type:"showstacks"`).
     ShowStacks,
+    /// `open url "…"` — the host opens the URL (ADR-0023).
+    OpenUrl(String),
+    /// `share "…"` — the host opens the system share sheet (ADR-0023).
+    Share(String),
+    /// `toast "…"` — the host shows a brief toast (ADR-0023).
+    Toast(String),
 }
 
 /// Result of dispatching a touch back to the host.
@@ -1469,5 +1475,8 @@ fn host_effect(c: &HostCmd) -> HostEffect {
         HostCmd::Beep => HostEffect::Beep,
         HostCmd::GoStack(s) => HostEffect::GoStack(s.clone()),
         HostCmd::ShowStacks => HostEffect::ShowStacks,
+        HostCmd::OpenUrl(s) => HostEffect::OpenUrl(s.clone()),
+        HostCmd::Share(s) => HostEffect::Share(s.clone()),
+        HostCmd::Toast(s) => HostEffect::Toast(s.clone()),
     }
 }
