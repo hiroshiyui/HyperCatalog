@@ -14,7 +14,7 @@ for now (`load_from_json`).
 | Crate          | Type    | What it is |
 |----------------|---------|------------|
 | `hypercore`    | lib     | Model + HyperTalk lexer/parser/interpreter + persistence + `Session` facade. Platform-neutral. |
-| `hyperffi`     | cdylib  | JNI bridge (`Java_..._NativeBridge_*`). Android-only body; builds empty elsewhere. |
+| `hyperffi`     | cdylib  | **UniFFI** bridge (`bridge.rs` → a typed `HyperStack` object); `uniffi-bindgen` generates the Kotlin host bindings. No hand-written JNI, no JSON on the wire (ADR-0012). |
 | `hyper-desktop`| bin     | Headless REPL to drive a stack without an emulator. |
 
 ## Prerequisites

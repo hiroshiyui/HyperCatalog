@@ -2,7 +2,8 @@
 //! exposes the small surface the platform host (Android/desktop) drives: render the
 //! current card, dispatch a touch, edit a field, navigate, and serialize for saving.
 //!
-//! The boundary is deliberately data-only (serde structs) so it can cross JNI as JSON.
+//! The boundary is data-only (serde structs / plain records); `hyperffi` re-exposes it as a typed
+//! UniFFI `HyperStack`, so the host gets generated, type-safe bindings (ADR-0012).
 
 use serde::Serialize;
 
