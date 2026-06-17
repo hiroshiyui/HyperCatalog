@@ -108,10 +108,46 @@ instrumented tests on a 16 KB-page emulator):
 `assets/layout_demo.yaml` ("Layout Demo") showcases the grid/row/column reflow + roles + theme +
 switch; toggling Native/Classic on its card is a before/after of the whole dialect.
 
-**Still deferred:** the `constraints`/anchor solver (needs ConstraintLayout-Compose + an anchor
-model — [ADR-0020](adr/0020-safe-area-insets-and-constraints.md)); `on rotate w,h` args (typed
-message args); more object kinds (slider/chip/image/progress/…, same Design-B pattern as `switch`);
-and a full seed→tonal palette for non-`dynamic` theming.
+The remaining native components and platform facilities are sequenced below as **Phases 6–11**, in
+priority order.
+
+### Phase 6 — Native component palette *(next)*
+
+Finish the object taxonomy beyond `switch`, each following the same Design-B recipe (a variant field
+on `Button`, projected to a distinct view-tree `kind`, rendered in Compose, scriptable via an interp
+arm): **`checkbox`** / **`radio`** (boolean, like switch), **`slider`** / **`progress`** (a numeric
+`the value of`), **`image`** (`the source of`, local assets first), **`chip`**, and **`divider`**. A
+`control` discriminator on `Button` names the Material control. Will produce its own ADR.
+
+### Phase 7 — Accessibility & theming polish
+
+`the contentDescription of <object>`, focus order, and live regions for **TalkBack** (ADR-0010's
+"single strongest argument for native"); a seed→tonal palette so non-`dynamic` light/dark themes use
+the stack's `accentColor`. Host-only, riding the existing view-tree pipe.
+
+### Phase 8 — Platform escape hatches
+
+Host-realized `HostEffect`s with light parser sugar: `open url`, `share`, `toast`, `send intent`, and
+local prefs (`get/set the pref "key"`). No async; quick wins that make stacks feel like real apps.
+
+### Phase 9 — Language & async foundation *(the enabler)*
+
+Two cross-cutting capabilities, each its own ADR: **typed message args** (`on rotate w,h`,
+`on permissionResult cam, granted`, handler params); and an **async bridge channel** (host→core
+callbacks for deferred completions — the standing [ADR-0008](adr/0008-native-view-rendering.md) open
+question). Largest/most architectural; unblocks Phase 10.
+
+### Phase 10 — Async platform facilities
+
+On the Phase 9 foundation: networking (`get url` → `on responseReceived data`), permissions
+(`ask permission` → `on permissionResult`), snackbar actions, scheduled/notification messages, and
+remote `image` sources.
+
+### Phase 11 — Motion, navigation & layout completion
+
+Material **visual effects** (`visual effect` → container-transform/fade-through), a real back-stack,
+**shared-element transitions** (`go card "x" with shared "hero"`), and the **`constraints`/anchor**
+layout solver (deferred from [ADR-0020](adr/0020-safe-area-insets-and-constraints.md)).
 
 ## Non-goals (for now)
 
